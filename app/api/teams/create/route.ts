@@ -24,11 +24,19 @@ export async function POST(request: NextRequest) {
     const randomSuffix = Math.random().toString(36).substring(2, 5).toUpperCase()
     const teamKey = `${baseKey}${randomSuffix}`
     
-    // Create team in database
+    // Create team in database and add creator as admin member
     const team = await db.team.create({
       data: {
         name: displayName,
         key: teamKey,
+        members: {
+          create: {
+            userId: userId,
+            userName: user.name || user.email || 'Unknown',
+            userEmail: user.email || '',
+            role: 'admin'
+          }
+        }
       }
     })
 

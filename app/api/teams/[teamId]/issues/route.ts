@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getIssues, createIssue, getIssueStats } from '@/lib/api/issues'
 import { CreateIssueData } from '@/lib/types'
-import { getUserId, getUser } from "@/lib/auth-server-helpers"
+import { getUserId, getUser, verifyTeamMembership } from "@/lib/auth-server-helpers"
 import { db } from '@/lib/db'
 
 // Cache for team existence checks
@@ -34,9 +34,11 @@ export async function GET(
   try {
     const { searchParams } = new URL(request.url)
     const { teamId } = await params
+    const userId = await getUserId()
 
-    // Ensure team exists in local database
+    // Ensure team exists and user is a member
     await ensureTeamExists(teamId)
+    await verifyTeamMembership(teamId, userId)
 
     // Parse filters from query params
     const filters = {
@@ -84,6 +86,9 @@ export async function POST(
       getUser(),
       ensureTeamExists(teamId)
     ])
+
+    // Verify user is a team member
+    await verifyTeamMembership(teamId, userId)
 
     // Get creator name
     const creatorName = user.name || user.email || 'Unknown'

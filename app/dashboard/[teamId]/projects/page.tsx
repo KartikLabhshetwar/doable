@@ -362,8 +362,8 @@ export default function ProjectsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h1 className="text-3xl font-light tracking-tight">Projects</h1>
-          <p className="text-muted-foreground text-body-medium">Manage your team&apos;s projects</p>
+          <h1 className="text-2xl font-semibold">Projects</h1>
+          <p className="text-muted-foreground text-sm">Manage your team&apos;s projects</p>
         </div>
         <Button 
           onClick={() => setCreateDialogOpen(true)}

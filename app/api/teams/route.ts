@@ -14,14 +14,33 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // For now, return all teams (in production, filter by user membership)
+    const userId = session.user.id
+
+    // Only return teams where the user is a member
     const teams = await db.team.findMany({
+      where: {
+        members: {
+          some: {
+            userId: userId
+          }
+        }
+      },
+      include: {
+        members: {
+          where: {
+            userId: userId
+          }
+        }
+      },
       orderBy: {
         createdAt: 'desc'
       }
     })
 
-    return NextResponse.json(teams)
+    // Return only the team data (not members)
+    const teamsWithoutMembers = teams.map(({ members, ...team }) => team)
+    
+    return NextResponse.json(teamsWithoutMembers)
   } catch (error) {
     console.error('Error fetching teams:', error)
     return NextResponse.json(

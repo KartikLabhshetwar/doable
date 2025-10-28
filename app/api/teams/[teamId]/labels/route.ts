@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getLabels, createLabel, updateLabel, deleteLabel } from '@/lib/api/labels'
 import { CreateLabelData } from '@/lib/types'
+import { getUserId, verifyTeamMembership } from '@/lib/auth-server-helpers'
 
 export async function GET(
   request: NextRequest,
@@ -8,6 +9,11 @@ export async function GET(
 ) {
   try {
     const { teamId } = await params
+    const userId = await getUserId()
+    
+    // Verify user is a team member
+    await verifyTeamMembership(teamId, userId)
+    
     const labels = await getLabels(teamId)
     return NextResponse.json(labels)
   } catch (error) {
@@ -26,6 +32,10 @@ export async function POST(
   try {
     const { teamId } = await params
     const body = await request.json()
+    const userId = await getUserId()
+    
+    // Verify user is a team member
+    await verifyTeamMembership(teamId, userId)
 
     const labelData: CreateLabelData = {
       name: body.name,
@@ -50,6 +60,10 @@ export async function PATCH(
   try {
     const { teamId, labelId } = await params
     const body = await request.json()
+    const userId = await getUserId()
+    
+    // Verify user is a team member
+    await verifyTeamMembership(teamId, userId)
 
     const updateData: Partial<CreateLabelData> = {
       name: body.name,
@@ -73,6 +87,11 @@ export async function DELETE(
 ) {
   try {
     const { teamId, labelId } = await params
+    const userId = await getUserId()
+    
+    // Verify user is a team member
+    await verifyTeamMembership(teamId, userId)
+    
     await deleteLabel(teamId, labelId)
     return NextResponse.json({ success: true })
   } catch (error) {

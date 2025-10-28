@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getProjects, createProject, getProjectStats } from '@/lib/api/projects'
 import { CreateProjectData } from '@/lib/types'
-import { getUserId, getUser } from "@/lib/auth-server-helpers"
+import { getUserId, getUser, verifyTeamMembership } from "@/lib/auth-server-helpers"
 import { db } from '@/lib/db'
 
 export async function GET(
@@ -11,6 +11,10 @@ export async function GET(
   try {
     const { teamId } = await params
     const { searchParams } = new URL(request.url)
+    const userId = await getUserId()
+
+    // Verify user is a team member
+    await verifyTeamMembership(teamId, userId)
 
     // Check if requesting stats
     if (searchParams.get('stats') === 'true') {
@@ -37,7 +41,7 @@ export async function POST(
     const { teamId } = await params
     const body = await request.json()
 
-    // Get the current user from Clerk (parallel calls for speed)
+    // Get the current user from Better Auth
     const [authResult, userResult] = await Promise.all([
       getUserId(),
       getUser()
@@ -45,13 +49,9 @@ export async function POST(
     
     const userId = authResult
     const user = userResult
-    
-    if (!userId || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+
+    // Verify user is a team member
+    await verifyTeamMembership(teamId, userId)
 
     // Get user display name from Clerk
     const userName = user.name || user.email || 'Unknown'
