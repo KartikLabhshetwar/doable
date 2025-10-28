@@ -9,7 +9,7 @@ interface DemoVideoSectionProps {
 }
 
 export const DemoVideoSection: React.FC<DemoVideoSectionProps> = ({
-  videoSrc,
+  videoSrc='/doable-demo.mp4',
   title = "See Doable in Action",
   description = "Watch how teams use Doable to manage tasks and collaborate effectively.",
   className = '',
