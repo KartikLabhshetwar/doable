@@ -195,29 +195,6 @@ npx prisma generate     # Generate Prisma Client
 npx prisma studio       # Open Prisma Studio for database browsing
 ```
 
-## Deployment
-
-### Deploy to Vercel
-
-1. Push your code to GitHub
-
-2. Import your project in Vercel
-   - Go to vercel.com
-   - Click "Add New Project"
-   - Import your GitHub repository
-
-3. Configure environment variables in Vercel
-   - Go to your project settings
-   - Navigate to Environment Variables
-   - Add all required variables from your .env.local
-
-4. Update Google OAuth redirect URI
-   - Go to Google Cloud Console
-   - Update authorized redirect URI to: `https://your-domain.com/api/auth/callback/google`
-
-5. Deploy
-   - Vercel will automatically deploy on push to main branch
-
 ## License
 
 Apache License 2.0 - see [LICENSE](LICENSE) for details.

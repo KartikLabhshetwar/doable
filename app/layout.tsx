@@ -7,7 +7,7 @@ import { HydrationBoundary } from "@/components/hydration-boundary";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Doable - Modern Team Task Management. Elevated.",
+  title: "Doable",
   description: "Built for teams who want to get things done. Clean, fast, and powerful task management. Free forever, open source.",
   keywords: ["task management", "team collaboration", "project management", "kanban", "agile", "productivity", "open source"],
   authors: [{ name: "Kartik Labhshetwar" }],
@@ -29,14 +29,14 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "https://doable-lyart.vercel.app/",
     siteName: "Doable",
-    title: "Doable - Modern Team Task Management. Elevated.",
-    description: "Built for teams who want to get things done. Clean, fast, and powerful task management with Swiss design principles.",
+    title: "Doable",
+    description: "Built for teams who want to get things done. Clean, fast, and powerful task management.",
     images: [
       {
         url: "/open-graph.png",
         width: 1200,
         height: 630,
-        alt: "Doable - Modern Team Task Management Platform",
+        alt: "Doable",
         type: "image/png",
       },
     ],
@@ -45,8 +45,8 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: "@code_kartik",
     creator: "@code_kartik",
-    title: "Doable - Modern Team Task Management. Elevated.",
-    description: "Built for teams who want to get things done. Clean, fast, and powerful task management with Swiss design principles. Free forever, open source.",
+    title: "Doable",
+    description: "Built for teams who want to get things done. Clean, fast, and powerful task management.",
     images: ["/open-graph.png"],
   },
   alternates: {

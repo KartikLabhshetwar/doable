@@ -14,7 +14,7 @@ interface LandingPageProps {
 
 export const LandingPage: React.FC<LandingPageProps> = ({ className = '' }) => {
   return (
-    <div className={`min-h-screen bg-background text-foreground relative pt-5 ${className}`}>
+    <div className={`min-h-screen max-w-7xl mx-auto bg-background text-foreground relative pt-5 ${className}`}>
       {/* Left Vertical Line - positioned to match navbar content width */}
       <div className="fixed top-0 h-full w-px bg-gray-200 dark:bg-neutral-700 z-10" 
            style={{ left: 'calc(50vw - 640px)' }}>
