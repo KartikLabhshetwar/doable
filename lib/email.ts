@@ -61,8 +61,11 @@ export async function sendInvitationEmail(params: {
     }
 
     // Send email via Resend
+    // Use verified domain: doable.kartiklabhshetwar.me
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@doable.kartiklabhshetwar.me'
+    
     const { data, error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+      from: fromEmail,
       to: email,
       subject: `You've been invited to join ${teamName} on Doable`,
       html: emailTemplate(teamName, inviterName, role, inviteUrl),

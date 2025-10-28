@@ -27,20 +27,31 @@ export async function POST(
     })
 
     if (!invitation) {
+      console.log('Invitation not found:', invitationId)
       return NextResponse.json(
         { error: 'Invitation not found' },
         { status: 404 }
       )
     }
 
+    console.log('Invitation found:', {
+      id: invitation.id,
+      email: invitation.email,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+      invitedTo: teamId
+    })
+
     if (invitation.status !== 'pending') {
+      console.log('Invitation status is not pending:', invitation.status)
       return NextResponse.json(
-        { error: 'Invitation is no longer valid' },
+        { error: `Invitation is no longer valid (status: ${invitation.status})` },
         { status: 400 }
       )
     }
 
     if (invitation.expiresAt < new Date()) {
+      console.log('Invitation expired:', invitation.expiresAt)
       return NextResponse.json(
         { error: 'Invitation has expired' },
         { status: 400 }
@@ -49,9 +60,11 @@ export async function POST(
 
     // Verify email matches
     const userEmail = user.email
+    console.log('Email check:', { invitationEmail: invitation.email, userEmail })
     if (invitation.email !== userEmail) {
+      console.log('Email mismatch')
       return NextResponse.json(
-        { error: 'Invitation email does not match your account' },
+        { error: `Invitation email does not match your account. Invitation is for: ${invitation.email}, but you are logged in as: ${userEmail}` },
         { status: 400 }
       )
     }
@@ -96,10 +109,10 @@ export async function POST(
     })
 
     return NextResponse.json({ success: true })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error accepting invitation:', error)
     return NextResponse.json(
-      { error: 'Failed to accept invitation' },
+      { error: error?.message || 'Failed to accept invitation' },
       { status: 500 }
     )
   }

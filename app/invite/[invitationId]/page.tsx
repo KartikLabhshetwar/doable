@@ -6,17 +6,31 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertCircle, CheckCircle } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
+import { authClient } from '@/lib/auth-client'
 
-export default function InvitePage({ params }: { params: { invitationId: string } }) {
-  const [status, setStatus] = useState<'loading' | 'accepting' | 'success' | 'error' | 'not-found' | 'expired'>('loading')
+export default function InvitePage({ params }: { params: Promise<{ invitationId: string }> }) {
+  const [status, setStatus] = useState<'loading' | 'ready' | 'accepting' | 'success' | 'error' | 'not-found' | 'expired' | 'need-login'>('loading')
   const [error, setError] = useState<string>('')
   const [teamId, setTeamId] = useState<string>('')
+  const [invitationId, setInvitationId] = useState<string>('')
+  const [invitationEmail, setInvitationEmail] = useState<string>('')
   const router = useRouter()
+  const { data: session } = authClient.useSession()
 
   useEffect(() => {
+    const fetchParams = async () => {
+      const resolvedParams = await params
+      setInvitationId(resolvedParams.invitationId)
+    }
+    fetchParams()
+  }, [params])
+
+  useEffect(() => {
+    if (!invitationId) return
+
     const fetchInvitation = async () => {
       try {
-        const response = await fetch(`/api/invitations/${params.invitationId}`)
+        const response = await fetch(`/api/invitations/${invitationId}`)
         
         if (!response.ok) {
           if (response.status === 404) {
@@ -30,6 +44,7 @@ export default function InvitePage({ params }: { params: { invitationId: string 
 
         const data = await response.json()
         setTeamId(data.teamId)
+        setInvitationEmail(data.email)
 
         // Check if already accepted or expired
         if (data.status === 'accepted') {
@@ -42,7 +57,21 @@ export default function InvitePage({ params }: { params: { invitationId: string 
           return
         }
 
-        setStatus('loading')
+        // Check if user is logged in
+        if (!session?.user) {
+          setStatus('need-login')
+          return
+        }
+
+        // Check if email matches
+        if (session.user.email !== data.email) {
+          setStatus('need-login')
+          setError(`This invitation is for ${data.email}, but you're logged in as ${session.user.email}`)
+          return
+        }
+
+        // Invitation is valid and ready to accept
+        setStatus('ready')
       } catch (error) {
         console.error('Error fetching invitation:', error)
         setStatus('error')
@@ -51,13 +80,13 @@ export default function InvitePage({ params }: { params: { invitationId: string 
     }
 
     fetchInvitation()
-  }, [params.invitationId])
+  }, [invitationId, session])
 
   const handleAccept = async () => {
     try {
       setStatus('accepting')
       
-      const response = await fetch(`/api/teams/${teamId}/invitations/${params.invitationId}/accept`, {
+      const response = await fetch(`/api/teams/${teamId}/invitations/${invitationId}/accept`, {
         method: 'POST',
       })
 
@@ -141,11 +170,62 @@ export default function InvitePage({ params }: { params: { invitationId: string 
             </div>
           )}
 
-          {status === 'loading' && teamId && (
-            <div className="pt-4">
+          {status === 'ready' && (
+            <div className="text-center py-8 space-y-4">
+              <CheckCircle className="h-12 w-12 mx-auto text-blue-600" />
+              <h3 className="text-xl font-semibold">You've been invited!</h3>
+              <p className="text-muted-foreground">Click the button below to join the team.</p>
               <Button onClick={handleAccept} className="w-full" size="lg">
                 Accept Invitation
               </Button>
+            </div>
+          )}
+
+          {status === 'need-login' && (
+            <div className="text-center py-8 space-y-4">
+              <AlertCircle className="h-12 w-12 mx-auto text-blue-600" />
+              <h3 className="text-xl font-semibold">Wrong Account</h3>
+              {error ? (
+                <div className="space-y-3">
+                  <p className="text-muted-foreground">{error}</p>
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                    <p className="text-sm font-medium">
+                      This invitation is for:
+                    </p>
+                    <p className="text-sm text-primary font-semibold">{invitationEmail}</p>
+                    <p className="text-sm text-muted-foreground">
+                      You're currently logged in as: {session?.user?.email}
+                    </p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Please log out and sign in with the correct email to accept this invitation.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  You need to be logged in to accept this invitation.
+                </p>
+              )}
+              <div className="flex gap-2 justify-center pt-4">
+                <Button
+                  onClick={async () => {
+                    try {
+                      await authClient.signOut()
+                      // Redirect to sign-in after successful sign out
+                      window.location.href = `/sign-in?redirect=/invite/${invitationId}`
+                    } catch (error) {
+                      console.error('Error signing out:', error)
+                      // Still redirect even if sign out fails
+                      window.location.href = `/sign-in?redirect=/invite/${invitationId}`
+                    }
+                  }}
+                  variant="default"
+                  size="lg"
+                  className="min-w-[140px]"
+                >
+                  Switch Account
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

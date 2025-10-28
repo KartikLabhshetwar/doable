@@ -2,12 +2,13 @@
 
 import { useState } from "react"
 import { authClient } from "@/lib/auth-client"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function SignUpPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -16,9 +17,10 @@ export default function SignUpPage() {
     setLoading(true)
 
     try {
+      const redirectUrl = searchParams.get("redirect") || "/dashboard"
       await authClient.signIn.social({
         provider: "google",
-        callbackURL: "/dashboard"
+        callbackURL: redirectUrl
       })
     } catch (err) {
       setError("Failed to sign up with Google")
@@ -53,7 +55,7 @@ export default function SignUpPage() {
 
           <div className="mt-4 text-center text-sm">
             Already have an account?{" "}
-            <a href="/sign-in" className="text-primary hover:underline">
+            <a href={`/sign-in${searchParams.get("redirect") ? `?redirect=${searchParams.get("redirect")}` : ""}`} className="text-primary hover:underline">
               Sign in
             </a>
           </div>
