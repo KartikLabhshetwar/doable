@@ -44,24 +44,24 @@ export const HowToUseSection: React.FC<HowToUseSectionProps> = ({ className = ''
             {steps.map((step, index) => (
               <div 
                 key={index} 
-                className="flex items-start gap-6 group"
+                className="flex items-start gap-6 group justify-center"
               >
                 {/* Step Number */}
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 justify-center">
                   <div className="inline-flex items-center justify-center w-14 h-14 bg-primary text-primary-foreground rounded-full text-xl font-bold group-hover:bg-primary/90 transition-colors">
                     {step.number}
                   </div>
                 </div>
                 
                 {/* Content */}
-                <div className="flex-1">
+                <div className="flex-2 max-w-lg justify-center">
                   {/* Title */}
-                  <h3 className="text-2xl font-semibold text-foreground mb-2">
+                  <h3 className="text-2xl font-semibold text-foreground mb-2 justify-center">
                     {step.title}
                   </h3>
                   
                   {/* Description */}
-                  <p className="text-muted-foreground leading-relaxed text-base">
+                  <p className="text-muted-foreground leading-relaxed text-base justify-center">
                     {step.description}
                   </p>
                 </div>

@@ -34,10 +34,6 @@ export const CtaSection: React.FC<CtaSectionProps> = ({ className = '' }) => {
         />
       </div>
       
-      {/* Background Effects */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-transparent z-0" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-gradient-to-r from-primary/20 to-primary/5 rounded-full blur-3xl opacity-30 z-0" />
-      
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
         {/* Big Headline */}
         <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-center tracking-tight mb-6 sm:mb-8">

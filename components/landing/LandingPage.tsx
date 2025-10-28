@@ -4,6 +4,7 @@ import { HeroSection } from './HeroSection';
 import { DemoVideoSection } from './DemoVideoSection';
 import { FeaturesSection } from './FeaturesSection';
 import { HowToUseSection } from './HowToUseSection';
+import { Testimonials } from './Testimonials';
 import { CtaSection } from './CtaSection';
 import { Footer } from './Footer';
 import { HorizontalLine } from './HorizontalLine';
@@ -39,7 +40,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ className = '' }) => {
       
       {/* Demo Video Section */}
       <DemoVideoSection 
-        videoSrc="/doable-demo.mp4"
+        videoSrc="/doable.mp4"
         title="See Doable in Action"
         description="Watch how teams use Doable to manage tasks and collaborate effectively."
       />
@@ -53,6 +54,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ className = '' }) => {
 
       {/* Features Section */}
       <FeaturesSection />
+      
+      <HorizontalLine />
+      
+      {/* Testimonials Section */}
+      <Testimonials />
       
       <HorizontalLine />
       

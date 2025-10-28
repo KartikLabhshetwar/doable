@@ -6,6 +6,12 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CustomNavbar } from "@/components/landing/CustomNavbar"
+import {Instrument_Serif} from 'next/font/google'
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ['latin'],
+  weight: '400',
+})
 
 export default function SignUpPage() {
   const router = useRouter()
@@ -31,7 +37,7 @@ export default function SignUpPage() {
 
   return (
     <div className="min-h-screen">
-      <CustomNavbar />
+      <CustomNavbar className={instrumentSerif.className} />
       <div className="flex items-center justify-center p-4 pt-24">
         <Card className="w-full max-w-md">
         <CardHeader>
