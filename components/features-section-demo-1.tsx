@@ -4,7 +4,7 @@ import { useId } from "react";
 export default function FeaturesSectionDemo() {
   return (
     <div id="features" className="py-20 lg:py-40 relative overflow-hidden">
-      <div className="max-w-7xl mx-auto px-4 relative z-10">
+      <div className="max-w-7xl mx-auto px-6 md:px-8 lg:px-12 relative z-10">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-light tracking-tight mb-6 bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
             Everything you need to manage tasks
