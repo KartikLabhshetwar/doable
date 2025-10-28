@@ -6,6 +6,8 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Ensure static files are properly served
+  poweredByHeader: false,
 };
 
 export default nextConfig;

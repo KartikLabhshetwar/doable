@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Provider } from "./provider";
 import { HydrationBoundary } from "@/components/hydration-boundary";
+import { ErrorBoundaryWrapper } from "@/components/error-boundary-wrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -66,9 +67,11 @@ export default function RootLayout({
       <script defer src="https://cloud.umami.is/script.js" data-website-id="158d23fd-3fec-46cb-a533-9f1136de3fe7"></script>
       </head>
       <body className={inter.className}>
-        <HydrationBoundary>
-          <Provider>{children}</Provider>
-        </HydrationBoundary>
+        <ErrorBoundaryWrapper>
+          <HydrationBoundary>
+            <Provider>{children}</Provider>
+          </HydrationBoundary>
+        </ErrorBoundaryWrapper>
       </body>
     </html>
   );
