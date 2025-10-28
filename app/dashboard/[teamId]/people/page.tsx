@@ -6,6 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -26,6 +34,11 @@ interface TeamMember {
   userEmail: string
   role: string
   createdAt: string
+}
+
+interface CurrentUser {
+  userId: string
+  role: string
 }
 
 interface Invitation {
@@ -49,19 +62,53 @@ export default function PeoplePage() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('developer')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
+  const [memberToRemove, setMemberToRemove] = useState<{ id: string; name: string } | null>(null)
 
   const { toasts, toast, removeToast } = useToast()
 
   const fetchData = useCallback(async () => {
     try {
-      const [membersRes, invitationsRes] = await Promise.all([
+      const [membersRes, invitationsRes, sessionRes] = await Promise.all([
         fetch(`/api/teams/${teamId}/members`),
-        fetch(`/api/teams/${teamId}/invitations`)
+        fetch(`/api/teams/${teamId}/invitations`),
+        fetch('/api/auth/get-session')
       ])
 
       if (membersRes.ok) {
         const membersData = await membersRes.json()
         setMembers(membersData)
+        
+        // Get current user's role from session
+        if (sessionRes.ok) {
+          const sessionData = await sessionRes.json()
+          console.log('Session data:', sessionData)
+          
+          const currentUserMember = membersData.find((m: TeamMember) => 
+            m.userId === sessionData?.user?.id
+          )
+          
+          console.log('Current user member:', currentUserMember)
+          
+          if (currentUserMember) {
+            setCurrentUser({
+              userId: currentUserMember.userId,
+              role: currentUserMember.role,
+            })
+          } else {
+            // Fallback: if we can't find current user via session, 
+            // check if ANY member is admin and assume first admin is current user
+            const adminMember = membersData.find((m: TeamMember) => m.role === 'admin')
+            if (adminMember) {
+              console.log('Setting admin member as current user (fallback):', adminMember)
+              setCurrentUser({
+                userId: adminMember.userId,
+                role: adminMember.role,
+              })
+            }
+          }
+        }
       }
 
       if (invitationsRes.ok) {
@@ -167,6 +214,38 @@ export default function PeoplePage() {
       console.error('Error removing invitation:', error)
       toast.error('Failed to remove invitation', 'Please try again.')
     }
+  }
+
+  const handleRemoveMember = () => {
+    if (!memberToRemove) return
+    
+    const executeRemove = async () => {
+      try {
+        const response = await fetch(`/api/teams/${teamId}/members?memberId=${memberToRemove.id}`, {
+          method: 'DELETE',
+        })
+
+        if (response.ok) {
+          toast.success('Member removed', 'The team member has been removed successfully.')
+          setRemoveDialogOpen(false)
+          setMemberToRemove(null)
+          await fetchData()
+        } else {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to remove member')
+        }
+      } catch (error: any) {
+        console.error('Error removing member:', error)
+        toast.error('Failed to remove member', error.message || 'Please try again.')
+      }
+    }
+    
+    executeRemove()
+  }
+
+  const openRemoveDialog = (memberId: string, memberName: string) => {
+    setMemberToRemove({ id: memberId, name: memberName })
+    setRemoveDialogOpen(true)
   }
 
   return (
@@ -290,6 +369,16 @@ export default function PeoplePage() {
                     >
                       {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                     </span>
+                    {currentUser?.role === 'admin' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openRemoveDialog(member.id, member.userName)}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -342,6 +431,35 @@ export default function PeoplePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Remove Member Dialog */}
+      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Team Member</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove {memberToRemove?.name} from the team? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRemoveDialogOpen(false)
+                setMemberToRemove(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRemoveMember}
+            >
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
