@@ -66,6 +66,7 @@ export default function Layout(props: { children: React.ReactNode }) {
           const currentTeam = teams.find((t: any) => t.id === params.teamId);
           if (currentTeam) {
             setTeam(currentTeam);
+            setLoading(false);
           } else {
             // If team not found, redirect to dashboard immediately
             setIsRedirecting(true);
@@ -73,8 +74,12 @@ export default function Layout(props: { children: React.ReactNode }) {
             router.replace('/dashboard');
             return; // Exit early to prevent rendering
           }
+        } else {
+          // If response not ok, redirect to dashboard
+          setIsRedirecting(true);
+          setLoading(false);
+          router.replace('/dashboard');
         }
-        setLoading(false);
       } catch (error) {
         console.error('Error fetching team:', error);
         setLoading(false);
