@@ -5,6 +5,7 @@ import { authClient } from "@/lib/auth-client"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CustomNavbar } from "@/components/landing/CustomNavbar"
 
 export default function SignInPage() {
   const router = useRouter()
@@ -41,8 +42,10 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen">
+      <CustomNavbar />
+      <div className="flex items-center justify-center p-4 pt-24">
+        <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Sign In</CardTitle>
           <CardDescription>
@@ -72,7 +75,8 @@ export default function SignInPage() {
             </a>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   )
 }
