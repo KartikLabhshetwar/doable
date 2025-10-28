@@ -95,13 +95,13 @@ Always use the provided tools for actions.`
         description: 'Create a new issue. You can use workflow state names (like "Todo", "In Progress", "Done") and they will be automatically matched to IDs. Same for project names and assignee names.',
         inputSchema: z.object({
           title: z.string().describe('The title of the issue'),
-          description: z.string().optional().describe('A detailed description of the issue'),
-          projectId: z.string().optional().describe('The project ID, key, or name (e.g., "testing" or project name) this issue belongs to'),
+          description: z.string().nullish().describe('A detailed description of the issue'),
+          projectId: z.string().nullish().describe('The project ID, key, or name (e.g., "testing" or project name) this issue belongs to'),
           workflowStateId: z.string().describe('The workflow state ID or name (e.g., "Todo", "In Progress", "Done")'),
-          assigneeId: z.string().optional().describe('The user ID or name (e.g., "kartik") to assign this issue to'),
+          assigneeId: z.string().nullish().describe('The user ID or name (e.g., "kartik") to assign this issue to'),
           priority: z.enum(['none', 'low', 'medium', 'high', 'urgent']).optional().default('none'),
-          estimate: z.number().optional().describe('Story points or hours estimate'),
-          labelIds: z.array(z.string()).optional().describe('Array of label IDs'),
+          estimate: z.number().nullish().describe('Story points or hours estimate'),
+          labelIds: z.array(z.string()).nullish().describe('Array of label IDs'),
         }),
         execute: async ({ title, description, projectId, workflowStateId, assigneeId, priority, estimate, labelIds }) => {
           try {
@@ -140,13 +140,13 @@ Always use the provided tools for actions.`
               teamId,
               {
                 title,
-                description,
-                projectId: resolvedProjectId,
+                description: description || undefined,
+                projectId: resolvedProjectId || undefined,
                 workflowStateId: resolvedWorkflowStateId,
-                assigneeId: resolvedAssigneeId,
+                assigneeId: resolvedAssigneeId || undefined,
                 priority,
-                estimate,
-                labelIds,
+                estimate: estimate || undefined,
+                labelIds: labelIds || undefined,
               },
               userId,
               user.name || user.email || 'Unknown'
