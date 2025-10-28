@@ -3,6 +3,7 @@ export { CustomNavbar } from './CustomNavbar';
 export { HeroSection } from './HeroSection';
 export { FeaturesSection } from './FeaturesSection';
 export { HowToUseSection } from './HowToUseSection';
+export { DemoVideoSection } from './DemoVideoSection';
 export { CtaSection } from './CtaSection';
 export { Footer } from './Footer';
 export { HorizontalLine } from './HorizontalLine';

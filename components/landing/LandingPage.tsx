@@ -1,6 +1,7 @@
 import React from 'react';
 import { CustomNavbar } from './CustomNavbar';
 import { HeroSection } from './HeroSection';
+import { DemoVideoSection } from './DemoVideoSection';
 import { FeaturesSection } from './FeaturesSection';
 import { HowToUseSection } from './HowToUseSection';
 import { CtaSection } from './CtaSection';
@@ -15,12 +16,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ className = '' }) => {
   return (
     <div className={`min-h-screen bg-background text-foreground relative pt-20 ${className}`}>
       {/* Left Vertical Line - positioned to match navbar content width */}
-      <div className="fixed top-0 h-full w-px bg-gray-200 dark:bg-gray-700 z-10" 
+      <div className="fixed top-0 h-full w-px bg-gray-200 dark:bg-neutral-700 z-10" 
            style={{ left: 'calc(50vw - 640px)' }}>
       </div>
       
       {/* Right Vertical Line - positioned to match navbar content width */}
-      <div className="fixed top-0 h-full w-px bg-gray-200 dark:bg-gray-700 z-10" 
+      <div className="fixed top-0 h-full w-px bg-gray-200 dark:bg-neutral-700 z-10" 
            style={{ right: 'calc(50vw - 640px)' }}>
       </div>
       
@@ -31,8 +32,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ className = '' }) => {
       {/* Hero Section */}
       <HeroSection 
         title="Ship Faster, Work Smarter"
-        highlightText="Faster"
         description="The task management platform that actually works. Beautiful, intuitive, and built for teams who ship."
+      />
+
+      <HorizontalLine />
+      
+      {/* Demo Video Section */}
+      <DemoVideoSection 
+        videoSrc="/demo-video.mp4"
+        title="See Doable in Action"
+        description="Watch how teams use Doable to manage tasks and collaborate effectively."
       />
 
       <HorizontalLine />

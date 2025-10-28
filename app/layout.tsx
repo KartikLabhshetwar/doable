@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Doable - Modern Team Task Management. Elevated.",
-  description: "Built for teams who want to get things done. Clean, fast, and powerful task management with Swiss design principles. Free forever, open source.",
+  description: "Built for teams who want to get things done. Clean, fast, and powerful task management. Free forever, open source.",
   keywords: ["task management", "team collaboration", "project management", "kanban", "agile", "productivity", "open source"],
   authors: [{ name: "Kartik Labhshetwar" }],
   creator: "Kartik Labhshetwar",

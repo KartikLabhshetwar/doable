@@ -6,6 +6,6 @@ interface HorizontalLineProps {
 
 export const HorizontalLine: React.FC<HorizontalLineProps> = ({ className = '' }) => {
   return (
-    <div className={`w-full h-px bg-gray-200 dark:bg-gray-700 ${className}`} />
+    <div className={`w-full h-px bg-gray-200 dark:bg-neutral-700 ${className}`} />
   );
 };
