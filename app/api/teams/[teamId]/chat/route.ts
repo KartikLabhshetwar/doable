@@ -92,23 +92,41 @@ Always use the provided tools for actions.`
     // Define tools for the AI
     const tools = {
       createIssue: tool({
-        description: 'Create a new issue. You can use workflow state names (like "Todo", "In Progress", "Done") and they will be automatically matched to IDs. Same for project names and assignee names.',
+        description: 'Create a new issue. You can use workflow state names (like "Todo", "In Progress", "Done") and they will be automatically matched to IDs. Same for project names, assignee names, and label names. If any required information is missing, ask the user for it.',
         inputSchema: z.object({
-          title: z.string().describe('The title of the issue'),
+          title: z.string().nullish().describe('The title of the issue (REQUIRED)'),
           description: z.string().nullish().describe('A detailed description of the issue'),
           projectId: z.string().nullish().describe('The project ID, key, or name (e.g., "testing" or project name) this issue belongs to'),
-          workflowStateId: z.string().describe('The workflow state ID or name (e.g., "Todo", "In Progress", "Done")'),
+          workflowStateId: z.string().nullish().describe('The workflow state ID or name (e.g., "Todo", "In Progress", "Done") (REQUIRED)'),
           assigneeId: z.string().nullish().describe('The user ID or name (e.g., "kartik") to assign this issue to'),
-          priority: z.enum(['none', 'low', 'medium', 'high', 'urgent']).optional().default('none'),
+          priority: z.enum(['none', 'low', 'medium', 'high', 'urgent']).nullish().default('none'),
           estimate: z.number().nullish().describe('Story points or hours estimate'),
-          labelIds: z.array(z.string()).nullish().describe('Array of label IDs'),
+          labelIds: z.array(z.string()).nullish().describe('Array of label names or IDs (e.g., ["Bug", "Feature", "Documentation", "Enhancement"])'),
         }),
         execute: async ({ title, description, projectId, workflowStateId, assigneeId, priority, estimate, labelIds }) => {
           try {
+            // Check for missing required fields and ask user for them
+            const missingFields = []
+            
+            if (!title || title === 'null' || title === 'undefined') {
+              missingFields.push('title')
+            }
+            
+            if (!workflowStateId || workflowStateId === 'null' || workflowStateId === 'undefined') {
+              missingFields.push('status (workflow state)')
+            }
+            
+            if (missingFields.length > 0) {
+              return {
+                success: false,
+                error: `Missing required information: ${missingFields.join(', ')}. Please provide ${missingFields.length === 1 ? 'this' : 'these'} to create the issue.`,
+              }
+            }
+
             // Resolve workflow state by name or ID
-            let resolvedWorkflowStateId = workflowStateId
+            let resolvedWorkflowStateId = workflowStateId || defaultWorkflowState?.id || teamContext.workflowStates[0]?.id
             const workflowState = teamContext.workflowStates.find(
-              (ws) => ws.id === workflowStateId || ws.name.toLowerCase() === workflowStateId.toLowerCase()
+              (ws) => ws.id === resolvedWorkflowStateId || ws.name.toLowerCase() === resolvedWorkflowStateId?.toLowerCase()
             )
             if (workflowState) {
               resolvedWorkflowStateId = workflowState.id
@@ -136,17 +154,32 @@ Always use the provided tools for actions.`
               }
             }
 
+            // Resolve labels by name or ID
+            let resolvedLabelIds = labelIds
+            if (labelIds && labelIds.length > 0) {
+              resolvedLabelIds = labelIds.map(labelIdOrName => {
+                const label = teamContext.labels.find(
+                  (l) => l.id === labelIdOrName || l.name.toLowerCase() === labelIdOrName.toLowerCase()
+                )
+                return label ? label.id : labelIdOrName
+              })
+            }
+
+            // Type assertion is safe here because we already validated title and workflowStateId exist
+            const issueTitle = title || ''
+            const issueWorkflowStateId = workflowStateId || defaultWorkflowState?.id || teamContext.workflowStates[0]?.id || ''
+            
             const issue = await createIssue(
               teamId,
               {
-                title,
+                title: issueTitle,
                 description: description || undefined,
                 projectId: resolvedProjectId || undefined,
-                workflowStateId: resolvedWorkflowStateId,
+                workflowStateId: resolvedWorkflowStateId!,
                 assigneeId: resolvedAssigneeId || undefined,
-                priority,
+                priority: priority ?? 'none',
                 estimate: estimate || undefined,
-                labelIds: labelIds || undefined,
+                labelIds: resolvedLabelIds || undefined,
               },
               userId,
               user.name || user.email || 'Unknown'
@@ -174,17 +207,17 @@ Always use the provided tools for actions.`
       }),
 
       updateIssue: tool({
-        description: 'Update an existing issue by title or ID. Use workflow state names (like "Todo", "Backlog", "In Progress", "Done") and assignee names.',
+        description: 'Update an existing issue by title or ID. Use workflow state names (like "Todo", "Backlog", "In Progress", "Done"), assignee names, and label names.',
         inputSchema: z.object({
           issueId: z.string().optional().describe('The ID of the issue to update'),
           title: z.string().optional().describe('The title of the issue to find (if issueId not provided)'),
           newTitle: z.string().optional(),
           description: z.string().optional(),
           workflowStateId: z.string().optional().describe('The new workflow state ID or name (e.g., "Todo", "Backlog", "In Progress", "Done")'),
-          assigneeId: z.string().optional().describe('The user ID or name to assign this issue to'),
-          priority: z.enum(['none', 'low', 'medium', 'high', 'urgent']).optional(),
-          estimate: z.number().optional(),
-          labelIds: z.array(z.string()).optional(),
+          assigneeId: z.string().nullish().describe('The user ID or name to assign this issue to'),
+          priority: z.enum(['none', 'low', 'medium', 'high', 'urgent']).nullish(),
+          estimate: z.number().nullish(),
+          labelIds: z.array(z.string()).nullish().describe('Array of label names or IDs (e.g., ["Bug", "Feature", "Documentation"])'),
         }),
         execute: async ({ issueId, title, newTitle, description, workflowStateId, assigneeId, priority, estimate, labelIds }) => {
           try {
@@ -237,6 +270,17 @@ Always use the provided tools for actions.`
               }
             }
 
+            // Resolve labels by name or ID
+            let resolvedLabelIds = labelIds
+            if (labelIds && labelIds.length > 0) {
+              resolvedLabelIds = labelIds.map(labelIdOrName => {
+                const label = teamContext.labels.find(
+                  (l) => l.id === labelIdOrName || l.name.toLowerCase() === labelIdOrName.toLowerCase()
+                )
+                return label ? label.id : labelIdOrName
+              })
+            }
+
             const issue = await updateIssue(teamId, resolvedIssueId, {
               ...(newTitle && { title: newTitle }),
               ...(description !== undefined && { description }),
@@ -244,7 +288,7 @@ Always use the provided tools for actions.`
               ...(resolvedAssigneeId !== undefined && { assigneeId: resolvedAssigneeId }),
               ...(priority && { priority }),
               ...(estimate && { estimate }),
-              ...(labelIds && { labelIds }),
+              ...(resolvedLabelIds && { labelIds: resolvedLabelIds }),
             })
 
             if (!issue) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -181,16 +181,20 @@ export default function IssuesPage() {
     }
   }
 
-  const fetchIssues = async () => {
+  const fetchIssues = useCallback(async (forceRefresh = false) => {
+    // Create cache key dynamically
+    const issuesCacheKey = `issues-${teamId}-${JSON.stringify(filters)}-${JSON.stringify(sort)}`
     try {
       setIssuesLoading(true)
       
-      // Check cache first
-      const cachedIssues = getCachedData(cacheKeys.issues)
-      if (cachedIssues) {
-        setIssues(cachedIssues)
-        setIssuesLoading(false)
-        return
+      // Check cache first (unless forcing refresh)
+      if (!forceRefresh) {
+        const cachedIssues = getCachedData(issuesCacheKey)
+        if (cachedIssues) {
+          setIssues(cachedIssues)
+          setIssuesLoading(false)
+          return
+        }
       }
 
       const searchParams = new URLSearchParams()
@@ -217,7 +221,7 @@ export default function IssuesPage() {
       const data = await response.json()
       
       // Cache the issues
-      setCachedData(cacheKeys.issues, data)
+      setCachedData(issuesCacheKey, data)
       setIssues(data)
     } catch (error) {
       console.error('Error fetching issues:', error)
@@ -225,11 +229,7 @@ export default function IssuesPage() {
     } finally {
       setIssuesLoading(false)
     }
-  }
-
-  // Keyboard shortcuts
-  useCommandPalette(() => setCommandPaletteOpen(true))
-  useCreateShortcut(() => setCreateDialogOpen(true))
+  }, [teamId, filters, sort, toast])
 
   // Memoized cache keys
   const cacheKeys = useMemo(() => ({
@@ -238,6 +238,10 @@ export default function IssuesPage() {
     labels: `labels-${teamId}`,
     issues: `issues-${teamId}-${JSON.stringify(filters)}-${JSON.stringify(sort)}`
   }), [teamId, filters, sort])
+
+  // Keyboard shortcuts
+  useCommandPalette(() => setCommandPaletteOpen(true))
+  useCreateShortcut(() => setCreateDialogOpen(true))
 
   useEffect(() => {
     fetchInitialData()
@@ -252,8 +256,9 @@ export default function IssuesPage() {
   // Add event listener to refresh issues when chatbot creates/updates issues
   useEffect(() => {
     const handleRefresh = () => {
+      // Clear cache and force fresh fetch
       clearAllCachedData()
-      fetchIssues()
+      fetchIssues(true)
     }
 
     window.addEventListener('refresh-issues', handleRefresh)
@@ -261,8 +266,7 @@ export default function IssuesPage() {
     return () => {
       window.removeEventListener('refresh-issues', handleRefresh)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamId])
+  }, [fetchIssues])
 
   const handleIssueView = (issue: IssueWithRelations) => {
     // For now, just open the edit dialog to view details
