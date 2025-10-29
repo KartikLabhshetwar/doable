@@ -13,6 +13,14 @@ import { deleteIssue } from '@/lib/api/issues'
 import { createProject, updateProject, deleteProject } from '@/lib/api/projects'
 import { sendInvitationEmail } from '@/lib/email'
 import { stepCountIs } from 'ai'
+import {
+  resolveWorkflowState,
+  resolveProject,
+  resolveAssignee,
+  resolveLabelIds,
+  validateIssueFields,
+  formatValidationError,
+} from '@/lib/api/chat-helpers'
 
 export const maxDuration = 30
 
@@ -63,14 +71,19 @@ Team Members: ${teamContext.members.map(m => m.userName).join(', ') || 'None'}
 
 ## Important Rules for Creating Issues
 
-When creating an issue, you MUST collect:
-1. Title (required)
-2. Status/Workflow State (required)
-3. Priority level (required - must ask user: low, medium, high, urgent, or none)
-4. Project (required - must ask user which project to add the issue to)
+When creating an issue, you MUST collect ALL of these BEFORE calling the createIssue tool:
+1. Title (required) - Must have a clear, descriptive title
+2. Status/Workflow State (required) - Must be a valid workflow state name from the list above
+3. Priority level (required) - MUST ask the user explicitly: "What should be the priority level? (low, medium, high, urgent, or none)"
+4. Project (required) - MUST ask the user: "Which project should this issue be added to?" and show available projects
 
-DO NOT create an issue without a priority - always ask the user to specify a priority level first. Do not default to "none" unless the user explicitly says they want none.
-DO NOT create an issue without a project - always ask the user which project to add the issue to. Show available projects if available.
+CRITICAL RULES:
+- DO NOT call createIssue or createIssues tools if ANY required field is missing (title, status, priority, or project)
+- DO NOT guess, infer, or default values - ALWAYS ask the user explicitly
+- DO NOT default priority to "none" unless the user explicitly says "none"
+- DO NOT use a default workflow state - always ask the user what status they want
+- Ask ONE question at a time to avoid overwhelming the user
+- If the user says "create an issue" with only a title, respond with: "Sure! To create the issue, I need a few more details. First, what should be the priority level for this issue? (low, medium, high, urgent, or none)"
 
 When user asks to see issues or lists tasks, ALWAYS call the listIssues tool WITHOUT a limit parameter to get ALL issues. 
 Display the results as a bullet list with clear formatting.
@@ -80,7 +93,7 @@ Always use the provided tools for actions.`
     // Define tools for the AI
     const tools = {
       createIssue: tool({
-        description: 'Create a single new issue. For creating multiple issues at once (2+), use createIssues instead. You can use workflow state names (like "Todo", "In Progress", "Done") and they will be automatically matched to IDs. Same for project names, assignee names, and label names. If any required information is missing (title, status, priority, or project), ask the user for it. Do not default priority to "none" - always ask the user to specify a priority level. Always ask which project the issue should be added to if not provided.',
+        description: 'Create a single new issue. For creating multiple issues at once (2+), use createIssues instead. You can use workflow state names (like "Todo", "In Progress", "Done") and they will be automatically matched to IDs. Same for project names, assignee names, and label names. CRITICAL: Do NOT call this tool if ANY required information is missing (title, status/workflow state, priority, or project). Instead, ask the user ONE question at a time for the missing information. Do not default priority to "none" - always ask the user to specify a priority level explicitly. Always ask which project the issue should be added to if not provided. Always ask what status/workflow state the issue should be in if not provided.',
         inputSchema: z.object({
           title: z.string().nullish().describe('The title of the issue (REQUIRED)'),
           description: z.string().nullish().describe('A detailed description of the issue'),
@@ -90,158 +103,106 @@ Always use the provided tools for actions.`
           priority: z.enum(['none', 'low', 'medium', 'high', 'urgent']).nullish().describe('The priority level (REQUIRED - must be one of: low, medium, high, urgent, or none). Do not call this tool with priority missing or defaulted to "none" - always ask the user to specify a priority first.'),
           estimate: z.number().nullish().describe('Story points or hours estimate'),
           labelIds: z.array(z.string()).nullish().describe('Array of label names or IDs (e.g., ["Bug", "Feature", "Documentation", "Enhancement"])'),
-        }),
-        execute: async ({ title, description, projectId, workflowStateId, assigneeId, priority, estimate, labelIds }) => {
+          // Support alias parameters that the AI might use
+          status: z.string().nullish().optional().describe('Alias for workflowStateId - do not use, use workflowStateId instead'),
+          project: z.string().nullish().optional().describe('Alias for projectId - do not use, use projectId instead'),
+        }).passthrough(),
+        execute: async (params) => {
           try {
-            // Check for missing required fields and ask user for them
-            const missingFields = []
-            
-            if (!title || title === 'null' || title === 'undefined') {
-              missingFields.push('title')
-            }
-            
-            if (!workflowStateId || workflowStateId === 'null' || workflowStateId === 'undefined') {
-              missingFields.push('status (workflow state)')
-            }
-            
-            // Check if priority is missing - only null/undefined means missing, 'none' is a valid value if explicitly provided
-            if (priority === null || priority === undefined) {
-              missingFields.push('priority')
-            }
-            
-            // Check if project is missing
-            if (projectId === null || projectId === undefined || !projectId || projectId === 'null' || projectId === 'undefined') {
-              missingFields.push('project')
-            }
-            
-            if (missingFields.length > 0) {
-              // Special message for priority to make it clearer
-              if (missingFields.includes('priority') && missingFields.length === 1) {
-                return {
-                  success: false,
-                  error: `To create this issue, I need to know the priority level. Please specify a priority: low, medium, high, urgent, or none.`,
-                }
-              }
-              
-              // Special message for project to make it clearer
-              if (missingFields.includes('project') && missingFields.length === 1) {
-                const availableProjects = teamContext.projects.length > 0 
-                  ? teamContext.projects.map(p => `${p.name} (${p.key})`).join(', ')
-                  : 'No projects available'
-                return {
-                  success: false,
-                  error: `To create this issue, I need to know which project to add it to. ${teamContext.projects.length > 0 ? `Available projects: ${availableProjects}. Please specify which project this issue should be added to.` : 'Please create a project first or specify an existing project.'}`,
-                }
-              }
-              
-              // Handle combinations with priority
-              if (missingFields.includes('priority') && missingFields.includes('project') && missingFields.length === 2) {
-                const availableProjects = teamContext.projects.length > 0 
-                  ? teamContext.projects.map(p => `${p.name} (${p.key})`).join(', ')
-                  : 'No projects available'
-                return {
-                  success: false,
-                  error: `To create this issue, I need two things: (1) the priority level (low, medium, high, urgent, or none), and (2) which project to add it to. ${teamContext.projects.length > 0 ? `Available projects: ${availableProjects}.` : 'Please create a project first or specify an existing project.'}`,
-                }
-              }
-              
-              // Handle combinations including other fields
-              if (missingFields.includes('priority')) {
-                const otherFields = missingFields.filter(f => f !== 'priority')
-                return {
-                  success: false,
-                  error: `Missing required information: ${otherFields.join(', ')}, and priority. Please provide ${otherFields.length === 1 ? 'this' : 'these'} along with a priority level (low, medium, high, urgent, or none) to create the issue.`,
-                }
-              }
-              
-              if (missingFields.includes('project')) {
-                const otherFields = missingFields.filter(f => f !== 'project')
-                const availableProjects = teamContext.projects.length > 0 
-                  ? teamContext.projects.map(p => `${p.name} (${p.key})`).join(', ')
-                  : 'No projects available'
-                return {
-                  success: false,
-                  error: `Missing required information: ${otherFields.join(', ')}, and project. Please provide ${otherFields.length === 1 ? 'this' : 'these'} along with a project. ${teamContext.projects.length > 0 ? `Available projects: ${availableProjects}.` : 'Please create a project first or specify an existing project.'}`,
-                }
-              }
-              
+            // Handle alias parameters - map status to workflowStateId and project to projectId
+            const {
+              title,
+              description,
+              projectId: paramProjectId,
+              workflowStateId: paramWorkflowStateId,
+              status,
+              project,
+              assigneeId,
+              priority,
+              estimate,
+              labelIds,
+            } = params
+
+            // Use aliases if main parameters are missing
+            const projectId = paramProjectId || project
+            const workflowStateId = paramWorkflowStateId || status
+
+            // Check for duplicate title before proceeding
+            const existingIssue = await db.issue.findFirst({
+              where: {
+                teamId,
+                title: {
+                  equals: title || '',
+                  mode: 'insensitive',
+                },
+              },
+              select: {
+                id: true,
+                number: true,
+                title: true,
+                project: {
+                  select: {
+                    name: true,
+                    key: true,
+                  },
+                },
+              },
+            })
+
+            if (existingIssue) {
               return {
                 success: false,
-                error: `Missing required information: ${missingFields.join(', ')}. Please provide ${missingFields.length === 1 ? 'this' : 'these'} to create the issue.`,
+                error: `An issue with the title "${title}" already exists (Issue #${existingIssue.number}${existingIssue.project ? ` in project ${existingIssue.project.name} (${existingIssue.project.key})` : ''}). Please use a different title or update the existing issue.`,
               }
             }
 
-            // Resolve workflow state by name or ID
-            let resolvedWorkflowStateId = workflowStateId || defaultWorkflowState?.id || teamContext.workflowStates[0]?.id
-            const workflowState = teamContext.workflowStates.find(
-              (ws) => ws.id === resolvedWorkflowStateId || ws.name.toLowerCase() === resolvedWorkflowStateId?.toLowerCase()
-            )
-            if (workflowState) {
-              resolvedWorkflowStateId = workflowState.id
-            }
-
-            // Resolve project by key, name, or ID
-            let resolvedProjectId = projectId
-            if (projectId) {
-              const project = teamContext.projects.find(
-                (p) => p.id === projectId || p.key.toLowerCase() === projectId.toLowerCase() || p.name.toLowerCase() === projectId.toLowerCase()
-              )
-              if (project) {
-                resolvedProjectId = project.id
-              } else {
-                // Project was provided but not found
-                const availableProjects = teamContext.projects.length > 0 
-                  ? teamContext.projects.map(p => `${p.name} (${p.key})`).join(', ')
-                  : 'No projects available'
-                return {
-                  success: false,
-                  error: `The project "${projectId}" was not found. ${teamContext.projects.length > 0 ? `Available projects: ${availableProjects}. Please specify a valid project name, key, or ID.` : 'Please create a project first or specify an existing project.'}`,
-                }
+            // Validate required fields FIRST - do not proceed if anything is missing
+            const validation = validateIssueFields({ title, workflowStateId, priority, projectId })
+            if (!validation.isValid) {
+              return {
+                success: false,
+                error: formatValidationError(validation.missingFields, teamContext),
               }
             }
 
-            // Resolve assignee by name or ID
-            let resolvedAssigneeId = assigneeId
-            if (assigneeId) {
-              const member = teamContext.members.find(
-                (m) => m.userId === assigneeId || m.userName.toLowerCase() === assigneeId.toLowerCase()
-              )
-              if (member) {
-                resolvedAssigneeId = member.userId
+            // Resolve all entities (synchronous lookups) - NO defaults allowed, we validated above
+            const resolvedWorkflowStateId = resolveWorkflowState(teamContext, workflowStateId)
+            const resolvedProject = resolveProject(teamContext, projectId)
+            const assignee = resolveAssignee(teamContext, assigneeId)
+            const resolvedLabelIds = resolveLabelIds(teamContext, labelIds)
+
+            // Validate that required entities were successfully resolved (more strict than just "provided")
+            if (!resolvedWorkflowStateId) {
+              const availableStates = teamContext.workflowStates.map(ws => ws.name).join(', ')
+              return {
+                success: false,
+                error: `Could not resolve workflow state "${workflowStateId}". Available states: ${availableStates}. Please specify a valid status/state name.`,
               }
             }
 
-            // Resolve labels by name or ID
-            let resolvedLabelIds = labelIds
-            if (labelIds && labelIds.length > 0) {
-              resolvedLabelIds = labelIds.map(labelIdOrName => {
-                const label = teamContext.labels.find(
-                  (l) => l.id === labelIdOrName || l.name.toLowerCase() === labelIdOrName.toLowerCase()
-                )
-                return label ? label.id : labelIdOrName
-              })
+            // Validate project was found
+            if (!resolvedProject) {
+              const availableProjects = teamContext.projects.length > 0 
+                ? teamContext.projects.map(p => `${p.name} (${p.key})`).join(', ')
+                : 'No projects available'
+              return {
+                success: false,
+                error: `The project "${projectId}" was not found. ${teamContext.projects.length > 0 ? `Available projects: ${availableProjects}. Please specify a valid project name, key, or ID.` : 'Please create a project first or specify an existing project.'}`,
+              }
             }
 
-            // Type assertion is safe here because we already validated title, workflowStateId, priority, and projectId exist
-            const issueTitle = title || ''
-            const issueWorkflowStateId = workflowStateId || defaultWorkflowState?.id || teamContext.workflowStates[0]?.id || ''
-            // Priority is validated above, so we know it's provided (not null/undefined)
-            // If it's explicitly 'none', that's a valid choice from the user
-            const issuePriority = priority ?? 'none'
-            // Project is validated and resolved above, so we know it exists
-            const issueProjectId = resolvedProjectId!
-            
+            // Create issue with resolved entities
             const issue = await createIssue(
               teamId,
               {
-                title: issueTitle,
+                title: title!,
                 description: description ?? undefined,
-                projectId: issueProjectId,
-                workflowStateId: resolvedWorkflowStateId!,
-                assigneeId: resolvedAssigneeId || undefined,
-                priority: issuePriority,
+                projectId: resolvedProject.id,
+                workflowStateId: resolvedWorkflowStateId,
+                assigneeId: assignee?.userId || undefined,
+                priority: priority ?? 'none',
                 estimate: estimate || undefined,
-                labelIds: resolvedLabelIds || undefined,
+                labelIds: resolvedLabelIds.length > 0 ? resolvedLabelIds : undefined,
               },
               userId,
               user.name || user.email || 'Unknown'
@@ -269,7 +230,7 @@ Always use the provided tools for actions.`
       }),
 
       createIssues: tool({
-        description: 'Create multiple issues at once. Accepts an array of issue objects. Each issue needs: title, status (workflow state), priority, and project. Use this when the user asks to create multiple issues (e.g., "create 10 issues", "create issues for tasks X, Y, Z").',
+        description: 'Create multiple issues at once. Accepts an array of issue objects. Each issue needs: title, status (workflow state), priority, and project. IMPORTANT: Do NOT call this tool if any issue is missing title, status, priority, or project - instead, ask the user for the missing information first. Use this when the user asks to create multiple issues (e.g., "create 10 issues", "create issues for tasks X, Y, Z").',
         inputSchema: z.object({
           issues: z.array(z.object({
             title: z.string().nullish().describe('The title of the issue (REQUIRED)'),
@@ -280,12 +241,58 @@ Always use the provided tools for actions.`
             priority: z.enum(['none', 'low', 'medium', 'high', 'urgent']).nullish().describe('The priority level (REQUIRED)'),
             estimate: z.number().optional().describe('Story points or hours estimate'),
             labelIds: z.array(z.string()).optional().describe('Array of label names or IDs'),
-          })).min(1).describe('Array of issues to create. Must contain at least 1 issue.'),
+            // Support alias parameters
+            status: z.string().nullish().optional().describe('Alias for workflowStateId - do not use, use workflowStateId instead'),
+            project: z.string().nullish().optional().describe('Alias for projectId - do not use, use projectId instead'),
+          }).passthrough()).min(1).describe('Array of issues to create. Must contain at least 1 issue.'),
         }),
         execute: async ({ issues }) => {
           try {
             if (!issues || issues.length === 0) {
               return { success: false, error: 'At least one issue is required' }
+            }
+
+            // Check for duplicate titles across all issues before proceeding
+            const titlesToCheck = issues
+              .map((issue) => issue.title)
+              .filter((title): title is string => !!title && title !== 'null' && title !== 'undefined')
+
+            if (titlesToCheck.length > 0) {
+              const existingIssues = await db.issue.findMany({
+                where: {
+                  teamId,
+                  title: {
+                    in: titlesToCheck,
+                    mode: 'insensitive',
+                  },
+                },
+                select: {
+                  title: true,
+                  number: true,
+                  project: {
+                    select: {
+                      name: true,
+                      key: true,
+                    },
+                  },
+                },
+              })
+
+              if (existingIssues.length > 0) {
+                const duplicates = existingIssues
+                  .map((issue) => {
+                    const projectInfo = issue.project
+                      ? ` in project ${issue.project.name} (${issue.project.key})`
+                      : ''
+                    return `"${issue.title}" (Issue #${issue.number}${projectInfo})`
+                  })
+                  .join(', ')
+
+                return {
+                  success: false,
+                  error: `The following issue titles already exist: ${duplicates}. Please use different titles or update the existing issues.`,
+                }
+              }
             }
 
             // Check for missing required fields across all issues
@@ -317,83 +324,91 @@ Always use the provided tools for actions.`
               }
             }
 
-            const createdIssues = []
-            const errors = []
+            // Resolve all entities and prepare issue creation tasks in parallel
+            const issueCreationTasks = issues.map((issueData) => {
+              return (async () => {
+                try {
+                  // Handle alias parameters
+                  const issueProjectId = issueData.projectId || (issueData as any).project
+                  const issueWorkflowStateId = issueData.workflowStateId || (issueData as any).status
 
-            for (const issueData of issues) {
-              try {
-                // Resolve workflow state
-                let resolvedWorkflowStateId = issueData.workflowStateId
-                const workflowState = teamContext.workflowStates.find(
-                  (ws) => ws.id === resolvedWorkflowStateId || ws.name.toLowerCase() === resolvedWorkflowStateId?.toLowerCase()
-                )
-                if (workflowState) {
-                  resolvedWorkflowStateId = workflowState.id
-                } else {
-                  resolvedWorkflowStateId = defaultWorkflowState?.id || teamContext.workflowStates[0]?.id || resolvedWorkflowStateId
-                }
-
-                // Resolve project
-                const projectId = issueData.projectId! // Safe after validation
-                const project = teamContext.projects.find(
-                  (p) => p.id === projectId || p.key.toLowerCase() === projectId.toLowerCase() || p.name.toLowerCase() === projectId.toLowerCase()
-                )
-                if (!project) {
-                  errors.push({ issue: issueData.title || 'Unknown', error: `Project "${projectId}" not found` })
-                  continue
-                }
-
-                // Resolve assignee
-                let resolvedAssigneeId = issueData.assigneeId
-                if (issueData.assigneeId) {
-                  const member = teamContext.members.find(
-                    (m) => m.userId === issueData.assigneeId || m.userName.toLowerCase() === (issueData.assigneeId || '').toLowerCase()
+                  // Resolve all entities (no defaults - validation already checked they exist)
+                  const resolvedWorkflowStateId = resolveWorkflowState(
+                    teamContext,
+                    issueWorkflowStateId
                   )
-                  if (member) {
-                    resolvedAssigneeId = member.userId
+                  
+                  const resolvedProject = resolveProject(teamContext, issueProjectId!)
+                  
+                  if (!resolvedProject) {
+                    const availableProjects = teamContext.projects.length > 0 
+                      ? teamContext.projects.map(p => `${p.name} (${p.key})`).join(', ')
+                      : 'No projects available'
+                    return {
+                      error: { 
+                        issue: issueData.title || 'Unknown', 
+                        error: `Project "${issueProjectId}" not found. Available projects: ${availableProjects}`
+                      },
+                    }
+                  }
+
+                  const assignee = resolveAssignee(teamContext, issueData.assigneeId)
+                  const resolvedLabelIds = resolveLabelIds(teamContext, issueData.labelIds)
+
+                  if (!resolvedWorkflowStateId) {
+                    const availableStates = teamContext.workflowStates.map(ws => ws.name).join(', ')
+                    return {
+                      error: { 
+                        issue: issueData.title || 'Unknown', 
+                        error: `Could not resolve workflow state "${issueWorkflowStateId}". Available states: ${availableStates}`
+                      },
+                    }
+                  }
+
+                  // Create the issue
+                  const issue = await createIssue(
+                    teamId,
+                    {
+                      title: issueData.title!,
+                      description: issueData.description ?? undefined,
+                      projectId: resolvedProject.id,
+                      workflowStateId: resolvedWorkflowStateId,
+                      assigneeId: assignee?.userId || undefined,
+                      priority: issueData.priority ?? 'none',
+                      estimate: issueData.estimate || undefined,
+                      labelIds: resolvedLabelIds.length > 0 ? resolvedLabelIds : undefined,
+                    },
+                    userId,
+                    user.name || user.email || 'Unknown'
+                  )
+
+                  if (issue) {
+                    return {
+                      success: {
+                        id: issue.id,
+                        number: issue.number,
+                        title: issue.title,
+                      },
+                    }
+                  } else {
+                    return {
+                      error: { issue: issueData.title || 'Unknown', error: 'Failed to create issue' },
+                    }
+                  }
+                } catch (error: any) {
+                  return {
+                    error: { issue: issueData.title || 'Unknown', error: error.message || 'Failed to create issue' },
                   }
                 }
+              })()
+            })
 
-                // Resolve labels
-                let resolvedLabelIds = issueData.labelIds
-                if (issueData.labelIds && issueData.labelIds.length > 0) {
-                  resolvedLabelIds = issueData.labelIds.map(labelIdOrName => {
-                    const label = teamContext.labels.find(
-                      (l) => l.id === labelIdOrName || l.name.toLowerCase() === labelIdOrName.toLowerCase()
-                    )
-                    return label ? label.id : labelIdOrName
-                  })
-                }
+            // Execute all issue creations in parallel
+            const results = await Promise.all(issueCreationTasks)
 
-                const issue = await createIssue(
-                  teamId,
-                  {
-                    title: issueData.title!,
-                    description: issueData.description ?? undefined,
-                    projectId: project.id,
-                    workflowStateId: resolvedWorkflowStateId!,
-                    assigneeId: resolvedAssigneeId || undefined,
-                    priority: issueData.priority ?? 'none',
-                    estimate: issueData.estimate || undefined,
-                    labelIds: resolvedLabelIds || undefined,
-                  },
-                  userId,
-                  user.name || user.email || 'Unknown'
-                )
-
-                if (issue) {
-                  createdIssues.push({
-                    id: issue.id,
-                    number: issue.number,
-                    title: issue.title,
-                  })
-                } else {
-                  errors.push({ issue: issueData.title, error: 'Failed to create issue' })
-                }
-              } catch (error: any) {
-                errors.push({ issue: issueData.title, error: error.message || 'Failed to create issue' })
-              }
-            }
+            // Separate successes from errors
+            const createdIssues = results.filter((r) => r.success).map((r) => r.success!)
+            const errors = results.filter((r) => r.error).map((r) => r.error!)
 
             const successMessage = createdIssues.length > 0
               ? `Successfully created ${createdIssues.length} issue${createdIssues.length !== 1 ? 's' : ''}: ${createdIssues.map(i => `#${i.number} "${i.title}"`).join(', ')}`
@@ -458,27 +473,17 @@ Always use the provided tools for actions.`
               return { success: false, error: 'Either issueId or title must be provided' }
             }
 
-            // Resolve workflow state by name or ID
-            let resolvedWorkflowStateId = workflowStateId
-            if (workflowStateId) {
-              const workflowState = teamContext.workflowStates.find(
-                (ws) => ws.id === workflowStateId || ws.name.toLowerCase() === workflowStateId.toLowerCase()
-              )
-              if (workflowState) {
-                resolvedWorkflowStateId = workflowState.id
-              }
-            }
-
-            // Resolve assignee by name or ID and get the assignee name
-            let resolvedAssigneeId = assigneeId
+            // Resolve entities using helper functions
+            const resolvedWorkflowStateId = resolveWorkflowState(teamContext, workflowStateId)
+            
+            // Resolve assignee and handle unassignment
+            let resolvedAssigneeId: string | null = null
             let resolvedAssigneeName: string | null = null
             if (assigneeId && assigneeId !== 'unassigned' && assigneeId !== 'null' && assigneeId !== 'undefined') {
-              const member = teamContext.members.find(
-                (m) => m.userId === assigneeId || m.userName.toLowerCase() === assigneeId.toLowerCase()
-              )
-              if (member) {
-                resolvedAssigneeId = member.userId
-                resolvedAssigneeName = member.userName
+              const assignee = resolveAssignee(teamContext, assigneeId)
+              if (assignee) {
+                resolvedAssigneeId = assignee.userId
+                resolvedAssigneeName = assignee.userName
               }
             } else if (assigneeId === null || assigneeId === 'unassigned' || assigneeId === 'null' || assigneeId === 'undefined') {
               // Explicitly unassign
@@ -486,16 +491,7 @@ Always use the provided tools for actions.`
               resolvedAssigneeName = null
             }
 
-            // Resolve labels by name or ID
-            let resolvedLabelIds = labelIds
-            if (labelIds && labelIds.length > 0) {
-              resolvedLabelIds = labelIds.map(labelIdOrName => {
-                const label = teamContext.labels.find(
-                  (l) => l.id === labelIdOrName || l.name.toLowerCase() === labelIdOrName.toLowerCase()
-                )
-                return label ? label.id : labelIdOrName
-              })
-            }
+            const resolvedLabelIds = resolveLabelIds(teamContext, labelIds)
 
             const issue = await updateIssue(teamId, resolvedIssueId, {
               ...(newTitle && { title: newTitle }),
@@ -699,38 +695,24 @@ Always use the provided tools for actions.`
                   continue
                 }
 
-                // Resolve workflow state if provided
-                let resolvedWorkflowStateId = updateData.workflowStateId
-                if (updateData.workflowStateId) {
-                  const workflowState = teamContext.workflowStates.find(
-                    (ws) => ws.id === updateData.workflowStateId || ws.name.toLowerCase() === (updateData.workflowStateId || '').toLowerCase()
-                  )
-                  if (workflowState) {
-                    resolvedWorkflowStateId = workflowState.id
-                  }
-                }
+                // Resolve entities using helper functions
+                const resolvedWorkflowStateId = updateData.workflowStateId
+                  ? resolveWorkflowState(teamContext, updateData.workflowStateId)
+                  : undefined
 
                 // Resolve assignee if provided
                 let resolvedAssigneeId = updateData.assigneeId
                 if (updateData.assigneeId) {
-                  const member = teamContext.members.find(
-                    (m) => m.userId === updateData.assigneeId || m.userName.toLowerCase() === (updateData.assigneeId || '').toLowerCase()
-                  )
-                  if (member) {
-                    resolvedAssigneeId = member.userId
+                  const assignee = resolveAssignee(teamContext, updateData.assigneeId)
+                  if (assignee) {
+                    resolvedAssigneeId = assignee.userId
                   }
                 }
 
                 // Resolve labels if provided
-                let resolvedLabelIds = updateData.labelIds
-                if (updateData.labelIds && updateData.labelIds.length > 0) {
-                  resolvedLabelIds = updateData.labelIds.map(labelIdOrName => {
-                    const label = teamContext.labels.find(
-                      (l) => l.id === labelIdOrName || l.name.toLowerCase() === labelIdOrName.toLowerCase()
-                    )
-                    return label ? label.id : labelIdOrName
-                  })
-                }
+                const resolvedLabelIds = updateData.labelIds
+                  ? resolveLabelIds(teamContext, updateData.labelIds)
+                  : undefined
 
                 const issue = await updateIssue(teamId, resolvedIssueId, {
                   ...(updateData.newTitle && { title: updateData.newTitle }),
