@@ -1,10 +1,10 @@
 import React from 'react';
-import FeaturesSectionDemo from '@/components/features-section-demo-1';
+import { FeatureCardsBento } from './FeatureCardsBento';
 
 interface FeaturesSectionProps {
   className?: string;
 }
 
 export const FeaturesSection: React.FC<FeaturesSectionProps> = ({ className = '' }) => {
-  return <FeaturesSectionDemo />;
+  return <FeatureCardsBento />;
 };
