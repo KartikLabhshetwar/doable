@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { Loader2, Brain } from 'lucide-react'
@@ -12,7 +12,6 @@ interface AIChatbotProps {
 }
 
 export function AIChatbot({ teamId }: AIChatbotProps) {
-  const [conversationId, setConversationId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const processedMessageIdsRef = useRef<Set<string>>(new Set())
   const previousStatusRef = useRef<string>('ready')
@@ -20,14 +19,13 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
       api: `/api/teams/${teamId}/chat`,
-      prepareSendMessagesRequest({ messages, id }) {
+      async prepareSendMessagesRequest({ messages }) {
         // Get API key from localStorage if available
         const apiKey = typeof window !== 'undefined' ? localStorage.getItem('groq_api_key') : null
         
         return {
           body: {
             messages,
-            conversationId: conversationId || id,
             ...(apiKey && { apiKey }),
           },
         }
@@ -88,13 +86,22 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
             // Issue operations
             if ((textParts.includes('issue') || textParts.includes('#') || textParts.includes('✔')) && 
                 (textParts.includes('created') || textParts.includes('has been created'))) {
-              if (!toolNames.includes('createIssue')) toolNames.push('createIssue')
+              if (!toolNames.includes('createIssue') && !toolNames.includes('createIssues')) {
+                toolNames.push('createIssue')
+                toolNames.push('createIssues') // Also trigger refresh for bulk operations
+              }
             }
             if (textParts.includes('issue') && textParts.includes('updated')) {
-              if (!toolNames.includes('updateIssue')) toolNames.push('updateIssue')
+              if (!toolNames.includes('updateIssue') && !toolNames.includes('updateIssues')) {
+                toolNames.push('updateIssue')
+                toolNames.push('updateIssues') // Also trigger refresh for bulk operations
+              }
             }
             if (textParts.includes('issue') && textParts.includes('deleted')) {
-              if (!toolNames.includes('deleteIssue')) toolNames.push('deleteIssue')
+              if (!toolNames.includes('deleteIssue') && !toolNames.includes('deleteIssues')) {
+                toolNames.push('deleteIssue')
+                toolNames.push('deleteIssues') // Also trigger refresh for bulk operations
+              }
             }
             
             // Project operations - catch any mention of project creation
@@ -102,7 +109,10 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
               if (textParts.includes('created') || textParts.includes('has been created') || 
                   textParts.includes('successfully') || textParts.includes('created successfully') ||
                   textParts.includes('✔')) {
-                if (!toolNames.includes('createProject')) toolNames.push('createProject')
+                if (!toolNames.includes('createProject') && !toolNames.includes('createProjects')) {
+                  toolNames.push('createProject')
+                  toolNames.push('createProjects') // Also trigger refresh for bulk operations
+                }
               }
               if (textParts.includes('updated')) {
                 if (!toolNames.includes('updateProject')) toolNames.push('updateProject')
@@ -115,7 +125,10 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
             // People operations
             if (textParts.includes('invited') || textParts.includes('invitation') || 
                 textParts.includes('team member')) {
-              if (!toolNames.includes('inviteTeamMember')) toolNames.push('inviteTeamMember')
+              if (!toolNames.includes('inviteTeamMember') && !toolNames.includes('inviteTeamMembers')) {
+                toolNames.push('inviteTeamMember')
+                toolNames.push('inviteTeamMembers') // Also trigger refresh for bulk operations
+              }
             }
             if (textParts.includes('invitation') && (textParts.includes('revoked') || 
                 textParts.includes('cancelled') || textParts.includes('removed') || textParts.includes('deleted'))) {
@@ -139,15 +152,19 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
           const uniqueTools = [...new Set(toolNames)]
           const toolString = uniqueTools.join(' ')
           
-          // Dispatch specific refresh events
+          // Dispatch specific refresh events (including bulk operations)
           setTimeout(() => {
-            if (toolString.includes('createIssue') || toolString.includes('updateIssue') || toolString.includes('deleteIssue')) {
+            if (toolString.includes('createIssue') || toolString.includes('createIssues') || 
+                toolString.includes('updateIssue') || toolString.includes('updateIssues') || 
+                toolString.includes('deleteIssue') || toolString.includes('deleteIssues')) {
               window.dispatchEvent(new Event('refresh-issues'))
             }
-            if (toolString.includes('createProject') || toolString.includes('updateProject') || toolString.includes('deleteProject')) {
+            if (toolString.includes('createProject') || toolString.includes('createProjects') || 
+                toolString.includes('updateProject') || toolString.includes('deleteProject')) {
               window.dispatchEvent(new Event('refresh-projects'))
             }
-            if (toolString.includes('inviteTeamMember') || toolString.includes('revokeInvitation') || toolString.includes('removeTeamMember')) {
+            if (toolString.includes('inviteTeamMember') || toolString.includes('inviteTeamMembers') || 
+                toolString.includes('revokeInvitation') || toolString.includes('removeTeamMember')) {
               window.dispatchEvent(new Event('refresh-people'))
             }
           }, 400)

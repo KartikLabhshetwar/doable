@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserId, getUser } from '@/lib/auth-server-helpers'
-import { streamText, tool, isToolUIPart, convertToModelMessages } from 'ai'
+import { streamText, tool, convertToModelMessages } from 'ai'
 import { createGroq } from '@ai-sdk/groq'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getTeamContext } from '@/lib/api/chat'
-import { updateConversationTitle, saveChatMessages } from '@/lib/api/chat'
 import { createIssue } from '@/lib/api/issues'
 import { updateIssue } from '@/lib/api/issues'
 import { getIssues } from '@/lib/api/issues'
@@ -23,7 +22,7 @@ export async function POST(
 ) {
   try {
     const { teamId } = await params
-    const { messages, conversationId, apiKey: clientApiKey } = await request.json()
+    const { messages, apiKey: clientApiKey } = await request.json()
 
     const userId = await getUserId()
     const user = await getUser()
@@ -78,32 +77,10 @@ Display the results as a bullet list with clear formatting.
 When user provides minimal information, ask ONE follow-up question at a time.
 Always use the provided tools for actions.`
 
-    // Load conversation from DB if conversationId provided
-    const conversationMessages = []
-    if (conversationId) {
-      const conversation = await db.chatConversation.findUnique({
-        where: { id: conversationId },
-        include: { messages: { orderBy: { createdAt: 'asc' } } },
-      })
-
-      if (conversation?.messages) {
-        conversationMessages.push(...conversation.messages.map(m => ({
-          role: m.role,
-          content: m.content,
-        })))
-      }
-
-      // Auto-generate title from first user message if not set
-      if (!conversation?.title && messages[0]?.content) {
-        const title = messages[0].content.slice(0, 50)
-        await updateConversationTitle(conversationId, title)
-      }
-    }
-
     // Define tools for the AI
     const tools = {
       createIssue: tool({
-        description: 'Create a new issue. You can use workflow state names (like "Todo", "In Progress", "Done") and they will be automatically matched to IDs. Same for project names, assignee names, and label names. If any required information is missing (title, status, priority, or project), ask the user for it. Do not default priority to "none" - always ask the user to specify a priority level. Always ask which project the issue should be added to if not provided.',
+        description: 'Create a single new issue. For creating multiple issues at once (2+), use createIssues instead. You can use workflow state names (like "Todo", "In Progress", "Done") and they will be automatically matched to IDs. Same for project names, assignee names, and label names. If any required information is missing (title, status, priority, or project), ask the user for it. Do not default priority to "none" - always ask the user to specify a priority level. Always ask which project the issue should be added to if not provided.',
         inputSchema: z.object({
           title: z.string().nullish().describe('The title of the issue (REQUIRED)'),
           description: z.string().nullish().describe('A detailed description of the issue'),
@@ -287,6 +264,154 @@ Always use the provided tools for actions.`
             }
           } catch (error: any) {
             return { success: false, error: error.message || 'Failed to create issue' }
+          }
+        },
+      }),
+
+      createIssues: tool({
+        description: 'Create multiple issues at once. Accepts an array of issue objects. Each issue needs: title, status (workflow state), priority, and project. Use this when the user asks to create multiple issues (e.g., "create 10 issues", "create issues for tasks X, Y, Z").',
+        inputSchema: z.object({
+          issues: z.array(z.object({
+            title: z.string().nullish().describe('The title of the issue (REQUIRED)'),
+            description: z.string().optional(),
+            projectId: z.string().nullish().describe('The project ID, key, or name (REQUIRED)'),
+            workflowStateId: z.string().nullish().describe('The workflow state ID or name (e.g., "Todo", "In Progress", "Done") (REQUIRED)'),
+            assigneeId: z.string().optional().describe('The user ID or name to assign this issue to'),
+            priority: z.enum(['none', 'low', 'medium', 'high', 'urgent']).nullish().describe('The priority level (REQUIRED)'),
+            estimate: z.number().optional().describe('Story points or hours estimate'),
+            labelIds: z.array(z.string()).optional().describe('Array of label names or IDs'),
+          })).min(1).describe('Array of issues to create. Must contain at least 1 issue.'),
+        }),
+        execute: async ({ issues }) => {
+          try {
+            if (!issues || issues.length === 0) {
+              return { success: false, error: 'At least one issue is required' }
+            }
+
+            // Check for missing required fields across all issues
+            const missingFields: string[] = []
+            for (let i = 0; i < issues.length; i++) {
+              const issueData = issues[i]
+              if (!issueData.title || issueData.title === 'null' || issueData.title === 'undefined') {
+                missingFields.push(`Issue ${i + 1}: title`)
+              }
+              if (!issueData.workflowStateId || issueData.workflowStateId === 'null' || issueData.workflowStateId === 'undefined') {
+                missingFields.push(`Issue ${i + 1}: status (workflow state)`)
+              }
+              if (issueData.priority === null || issueData.priority === undefined) {
+                missingFields.push(`Issue ${i + 1}: priority`)
+              }
+              if (!issueData.projectId || issueData.projectId === 'null' || issueData.projectId === 'undefined') {
+                missingFields.push(`Issue ${i + 1}: project`)
+              }
+            }
+
+            if (missingFields.length > 0) {
+              const availableProjects = teamContext.projects.length > 0 
+                ? teamContext.projects.map(p => `${p.name} (${p.key})`).join(', ')
+                : 'No projects available'
+              
+              return {
+                success: false,
+                error: `I need the following information to create the issues: ${missingFields.join(', ')}. Please provide ${missingFields.length === 1 ? 'this' : 'these'} to proceed. ${teamContext.projects.length > 0 && missingFields.some(f => f.includes('project')) ? `Available projects: ${availableProjects}.` : ''}`,
+              }
+            }
+
+            const createdIssues = []
+            const errors = []
+
+            for (const issueData of issues) {
+              try {
+                // Resolve workflow state
+                let resolvedWorkflowStateId = issueData.workflowStateId
+                const workflowState = teamContext.workflowStates.find(
+                  (ws) => ws.id === resolvedWorkflowStateId || ws.name.toLowerCase() === resolvedWorkflowStateId?.toLowerCase()
+                )
+                if (workflowState) {
+                  resolvedWorkflowStateId = workflowState.id
+                } else {
+                  resolvedWorkflowStateId = defaultWorkflowState?.id || teamContext.workflowStates[0]?.id || resolvedWorkflowStateId
+                }
+
+                // Resolve project
+                const projectId = issueData.projectId! // Safe after validation
+                const project = teamContext.projects.find(
+                  (p) => p.id === projectId || p.key.toLowerCase() === projectId.toLowerCase() || p.name.toLowerCase() === projectId.toLowerCase()
+                )
+                if (!project) {
+                  errors.push({ issue: issueData.title || 'Unknown', error: `Project "${projectId}" not found` })
+                  continue
+                }
+
+                // Resolve assignee
+                let resolvedAssigneeId = issueData.assigneeId
+                if (issueData.assigneeId) {
+                  const member = teamContext.members.find(
+                    (m) => m.userId === issueData.assigneeId || m.userName.toLowerCase() === (issueData.assigneeId || '').toLowerCase()
+                  )
+                  if (member) {
+                    resolvedAssigneeId = member.userId
+                  }
+                }
+
+                // Resolve labels
+                let resolvedLabelIds = issueData.labelIds
+                if (issueData.labelIds && issueData.labelIds.length > 0) {
+                  resolvedLabelIds = issueData.labelIds.map(labelIdOrName => {
+                    const label = teamContext.labels.find(
+                      (l) => l.id === labelIdOrName || l.name.toLowerCase() === labelIdOrName.toLowerCase()
+                    )
+                    return label ? label.id : labelIdOrName
+                  })
+                }
+
+                const issue = await createIssue(
+                  teamId,
+                  {
+                    title: issueData.title!,
+                    description: issueData.description || undefined,
+                    projectId: project.id,
+                    workflowStateId: resolvedWorkflowStateId!,
+                    assigneeId: resolvedAssigneeId || undefined,
+                    priority: issueData.priority ?? 'none',
+                    estimate: issueData.estimate || undefined,
+                    labelIds: resolvedLabelIds || undefined,
+                  },
+                  userId,
+                  user.name || user.email || 'Unknown'
+                )
+
+                if (issue) {
+                  createdIssues.push({
+                    id: issue.id,
+                    number: issue.number,
+                    title: issue.title,
+                  })
+                } else {
+                  errors.push({ issue: issueData.title, error: 'Failed to create issue' })
+                }
+              } catch (error: any) {
+                errors.push({ issue: issueData.title, error: error.message || 'Failed to create issue' })
+              }
+            }
+
+            const successMessage = createdIssues.length > 0
+              ? `Successfully created ${createdIssues.length} issue${createdIssues.length !== 1 ? 's' : ''}: ${createdIssues.map(i => `#${i.number} "${i.title}"`).join(', ')}`
+              : ''
+
+            const errorMessage = errors.length > 0
+              ? `Failed to create ${errors.length} issue${errors.length !== 1 ? 's' : ''}: ${errors.map(e => `"${e.issue}" (${e.error})`).join(', ')}`
+              : ''
+
+            return {
+              success: createdIssues.length > 0,
+              issues: createdIssues,
+              message: [successMessage, errorMessage].filter(m => m).join('. '),
+              createdCount: createdIssues.length,
+              failedCount: errors.length,
+            }
+          } catch (error: any) {
+            return { success: false, error: error.message || 'Failed to create issues' }
           }
         },
       }),
@@ -521,8 +646,225 @@ Always use the provided tools for actions.`
         },
       }),
 
+      updateIssues: tool({
+        description: 'Update multiple issues at once. Accepts an array of updates. Use this when the user asks to update multiple issues (e.g., "change status of issues #1, #2, #3 to Done", "assign all issues in project X to John").',
+        inputSchema: z.object({
+          updates: z.array(z.object({
+            issueId: z.string().optional().describe('The ID of the issue to update'),
+            title: z.string().optional().describe('The title of the issue to find (if issueId not provided)'),
+            newTitle: z.string().optional(),
+            description: z.string().optional(),
+            workflowStateId: z.string().optional().describe('The new workflow state ID or name'),
+            assigneeId: z.string().nullish().describe('The user ID or name to assign this issue to'),
+            priority: z.enum(['none', 'low', 'medium', 'high', 'urgent']).optional(),
+            estimate: z.number().nullish(),
+            labelIds: z.array(z.string()).optional().describe('Array of label names or IDs'),
+          })).min(1).describe('Array of issue updates. Must contain at least 1 update.'),
+        }),
+        execute: async ({ updates }) => {
+          try {
+            if (!updates || updates.length === 0) {
+              return { success: false, error: 'At least one issue update is required' }
+            }
+
+            const updatedIssues = []
+            const errors = []
+
+            for (const updateData of updates) {
+              try {
+                let resolvedIssueId = updateData.issueId
+
+                // If title is provided, find the issue
+                if (updateData.title && !updateData.issueId) {
+                  const issues = await getIssues(teamId)
+                  const matchingIssues = issues.filter(
+                    (issue: any) => issue.title.toLowerCase().includes((updateData.title || '').toLowerCase())
+                  )
+
+                  if (matchingIssues.length === 0) {
+                    errors.push({ issue: updateData.title, error: 'Issue not found' })
+                    continue
+                  }
+
+                  if (matchingIssues.length > 1) {
+                    errors.push({ issue: updateData.title, error: `Multiple issues found matching "${updateData.title}"` })
+                    continue
+                  }
+
+                  resolvedIssueId = matchingIssues[0].id
+                }
+
+                if (!resolvedIssueId) {
+                  errors.push({ issue: updateData.title || 'unknown', error: 'Either issueId or title must be provided' })
+                  continue
+                }
+
+                // Resolve workflow state if provided
+                let resolvedWorkflowStateId = updateData.workflowStateId
+                if (updateData.workflowStateId) {
+                  const workflowState = teamContext.workflowStates.find(
+                    (ws) => ws.id === updateData.workflowStateId || ws.name.toLowerCase() === (updateData.workflowStateId || '').toLowerCase()
+                  )
+                  if (workflowState) {
+                    resolvedWorkflowStateId = workflowState.id
+                  }
+                }
+
+                // Resolve assignee if provided
+                let resolvedAssigneeId = updateData.assigneeId
+                if (updateData.assigneeId) {
+                  const member = teamContext.members.find(
+                    (m) => m.userId === updateData.assigneeId || m.userName.toLowerCase() === (updateData.assigneeId || '').toLowerCase()
+                  )
+                  if (member) {
+                    resolvedAssigneeId = member.userId
+                  }
+                }
+
+                // Resolve labels if provided
+                let resolvedLabelIds = updateData.labelIds
+                if (updateData.labelIds && updateData.labelIds.length > 0) {
+                  resolvedLabelIds = updateData.labelIds.map(labelIdOrName => {
+                    const label = teamContext.labels.find(
+                      (l) => l.id === labelIdOrName || l.name.toLowerCase() === labelIdOrName.toLowerCase()
+                    )
+                    return label ? label.id : labelIdOrName
+                  })
+                }
+
+                const issue = await updateIssue(teamId, resolvedIssueId, {
+                  ...(updateData.newTitle && { title: updateData.newTitle }),
+                  ...(updateData.description !== undefined && { description: updateData.description }),
+                  ...(resolvedWorkflowStateId && { workflowStateId: resolvedWorkflowStateId }),
+                  ...(resolvedAssigneeId !== undefined && { assigneeId: resolvedAssigneeId || null }),
+                  ...(updateData.priority && { priority: updateData.priority }),
+                  ...(updateData.estimate !== undefined && { estimate: updateData.estimate || null }),
+                  ...(resolvedLabelIds && { labelIds: resolvedLabelIds }),
+                })
+
+                if (!issue) {
+                  errors.push({ issue: updateData.title || updateData.issueId || 'unknown', error: 'Failed to update issue' })
+                  continue
+                }
+
+                updatedIssues.push({
+                  id: issue.id,
+                  number: issue.number,
+                  title: issue.title,
+                })
+              } catch (error: any) {
+                errors.push({ issue: updateData.title || updateData.issueId || 'unknown', error: error.message || 'Failed to update issue' })
+              }
+            }
+
+            const successMessage = updatedIssues.length > 0
+              ? `Successfully updated ${updatedIssues.length} issue${updatedIssues.length !== 1 ? 's' : ''}: ${updatedIssues.map(i => `#${i.number} "${i.title}"`).join(', ')}`
+              : ''
+
+            const errorMessage = errors.length > 0
+              ? `Failed to update ${errors.length} issue${errors.length !== 1 ? 's' : ''}: ${errors.map(e => `"${e.issue}" (${e.error})`).join(', ')}`
+              : ''
+
+            return {
+              success: updatedIssues.length > 0,
+              issues: updatedIssues,
+              message: [successMessage, errorMessage].filter(m => m).join('. '),
+              updatedCount: updatedIssues.length,
+              failedCount: errors.length,
+            }
+          } catch (error: any) {
+            return { success: false, error: error.message || 'Failed to update issues' }
+          }
+        },
+      }),
+
+      deleteIssues: tool({
+        description: 'Delete multiple issues at once. Accepts an array of issue IDs or titles. Use this when the user asks to delete multiple issues (e.g., "delete issues #1, #2, #3", "delete all issues in project X").',
+        inputSchema: z.object({
+          issues: z.array(z.object({
+            issueId: z.string().optional().describe('The ID of the issue to delete'),
+            title: z.string().optional().describe('The title of the issue to find and delete (if issueId not provided)'),
+          })).min(1).describe('Array of issues to delete. Must contain at least 1 issue.'),
+        }),
+        execute: async ({ issues }) => {
+          try {
+            if (!issues || issues.length === 0) {
+              return { success: false, error: 'At least one issue is required' }
+            }
+
+            const deletedIssues = []
+            const errors = []
+
+            for (const issueData of issues) {
+              try {
+                let resolvedIssueId = issueData.issueId
+
+                // If title is provided, find the issue
+                if (issueData.title && !issueData.issueId) {
+                  const allIssues = await getIssues(teamId)
+                  const matchingIssues = allIssues.filter(
+                    (issue: any) => issue.title.toLowerCase().includes((issueData.title || '').toLowerCase())
+                  )
+
+                  if (matchingIssues.length === 0) {
+                    errors.push({ issue: issueData.title, error: 'Issue not found' })
+                    continue
+                  }
+
+                  if (matchingIssues.length > 1) {
+                    errors.push({ issue: issueData.title, error: `Multiple issues found matching "${issueData.title}"` })
+                    continue
+                  }
+
+                  resolvedIssueId = matchingIssues[0].id
+                }
+
+                if (!resolvedIssueId) {
+                  errors.push({ issue: issueData.title || 'unknown', error: 'Either issueId or title must be provided' })
+                  continue
+                }
+
+                const issue = await getIssueById(teamId, resolvedIssueId)
+                if (!issue) {
+                  errors.push({ issue: resolvedIssueId, error: 'Issue not found' })
+                  continue
+                }
+
+                await deleteIssue(teamId, resolvedIssueId)
+
+                deletedIssues.push({
+                  id: issue.id,
+                  number: issue.number,
+                  title: issue.title,
+                })
+              } catch (error: any) {
+                errors.push({ issue: issueData.title || issueData.issueId || 'unknown', error: error.message || 'Failed to delete issue' })
+              }
+            }
+
+            const successMessage = deletedIssues.length > 0
+              ? `Successfully deleted ${deletedIssues.length} issue${deletedIssues.length !== 1 ? 's' : ''}: ${deletedIssues.map(i => `#${i.number} "${i.title}"`).join(', ')}`
+              : ''
+
+            const errorMessage = errors.length > 0
+              ? `Failed to delete ${errors.length} issue${errors.length !== 1 ? 's' : ''}: ${errors.map(e => `"${e.issue}" (${e.error})`).join(', ')}`
+              : ''
+
+            return {
+              success: deletedIssues.length > 0,
+              issues: deletedIssues,
+              message: [successMessage, errorMessage].filter(m => m).join('. '),
+              deletedCount: deletedIssues.length,
+              failedCount: errors.length,
+            }
+          } catch (error: any) {
+            return { success: false, error: error.message || 'Failed to delete issues' }
+          }
+        },
+      }),
+
       createProject: tool({
-        description: 'Create a new project. The name and key are REQUIRED. If any required information is missing (name or key), ask the user for it. The color parameter is optional and defaults to #6366f1 if not provided. The status parameter is optional and defaults to "active" if not provided.',
+        description: 'Create a single new project. For creating multiple projects at once (2+), use createProjects instead. The name and key are REQUIRED. If any required information is missing (name or key), ask the user for it. The color parameter is optional and defaults to #6366f1 if not provided. The status parameter is optional and defaults to "active" if not provided.',
         inputSchema: z.object({
           name: z.string().nullish().describe('The name of the project (REQUIRED). Do not call this tool with name missing - always ask the user to specify the project name first.'),
           description: z.string().optional(),
@@ -605,6 +947,105 @@ Always use the provided tools for actions.`
             }
           } catch (error: any) {
             return { success: false, error: error.message || 'Failed to create project' }
+          }
+        },
+      }),
+
+      createProjects: tool({
+        description: 'Create multiple projects at once. Accepts an array of project objects. Each project needs: name and key (3-letter identifier). Use this when the user asks to create multiple projects (e.g., "create 5 projects", "create projects for frontend, backend, and API").',
+        inputSchema: z.object({
+          projects: z.array(z.object({
+            name: z.string().nullish().describe('The name of the project (REQUIRED)'),
+            description: z.string().optional(),
+            key: z.string().nullish().describe('A 3-letter project identifier (REQUIRED)'),
+            color: z.string().optional(),
+            icon: z.string().optional(),
+            leadId: z.string().optional(),
+            status: z.enum(['active', 'completed', 'canceled']).nullish().describe('The status of the project (optional, defaults to active)'),
+          })).min(1).describe('Array of projects to create. Must contain at least 1 project.'),
+        }),
+        execute: async ({ projects }) => {
+          try {
+            if (!projects || projects.length === 0) {
+              return { success: false, error: 'At least one project is required' }
+            }
+
+            // Check for missing required fields across all projects
+            const missingFields: string[] = []
+            for (let i = 0; i < projects.length; i++) {
+              const projectData = projects[i]
+              if (!projectData.name || projectData.name === 'null' || projectData.name === 'undefined') {
+                missingFields.push(`Project ${i + 1}: name`)
+              }
+              if (!projectData.key || projectData.key === 'null' || projectData.key === 'undefined') {
+                missingFields.push(`Project ${i + 1}: key (3-letter identifier)`)
+              }
+            }
+
+            if (missingFields.length > 0) {
+              return {
+                success: false,
+                error: `I need the following information to create the projects: ${missingFields.join(', ')}. Please provide ${missingFields.length === 1 ? 'this' : 'these'} to proceed.`,
+              }
+            }
+
+            const createdProjects = []
+            const errors = []
+
+            for (const projectData of projects) {
+              try {
+                // Validate key length
+                const projectKey = projectData.key! // Safe after validation
+                if (projectKey.length !== 3) {
+                  errors.push({ project: projectData.name || 'Unknown', error: `Key "${projectKey}" must be exactly 3 letters` })
+                  continue
+                }
+
+                // Check if key already exists
+                const existingProject = teamContext.projects.find(p => p.key.toLowerCase() === projectKey.toLowerCase())
+                if (existingProject) {
+                  errors.push({ project: projectData.name || 'Unknown', error: `Project key "${projectKey}" already exists` })
+                  continue
+                }
+
+                const project = await createProject(teamId, {
+                  name: projectData.name!,
+                  description: projectData.description,
+                  key: projectData.key!,
+                  color: projectData.color || '#6366f1',
+                  icon: projectData.icon,
+                  leadId: projectData.leadId,
+                  status: projectData.status || 'active',
+                  lead: projectData.leadId ? teamContext.members.find(m => m.userId === projectData.leadId)?.userName : undefined,
+                })
+
+                createdProjects.push({
+                  id: project.id,
+                  name: project.name,
+                  key: project.key,
+                })
+              } catch (error: any) {
+                errors.push({ project: projectData.name, error: error.message || 'Failed to create project' })
+              }
+            }
+
+            const successMessage = createdProjects.length > 0
+              ? `Successfully created ${createdProjects.length} project${createdProjects.length !== 1 ? 's' : ''}: ${createdProjects.map(p => `"${p.name}" (${p.key})`).join(', ')}`
+              : ''
+
+            const errorMessage = errors.length > 0
+              ? `Failed to create ${errors.length} project${errors.length !== 1 ? 's' : ''}: ${errors.map(e => `"${e.project}" (${e.error})`).join(', ')}`
+              : ''
+
+            return {
+              success: createdProjects.length > 0,
+              projects: createdProjects,
+              message: [successMessage, errorMessage].filter(m => m).join('. '),
+              createdCount: createdProjects.length,
+              failedCount: errors.length,
+            }
+          } catch (error: any) {
+            return { success: false, error: error.message || 'Failed to create projects' }
           }
         },
       }),
@@ -706,7 +1147,7 @@ Always use the provided tools for actions.`
       }),
 
       inviteTeamMember: tool({
-        description: 'Invite a new team member via email',
+        description: 'Invite a single new team member via email. For inviting multiple team members at once (2+), use inviteTeamMembers instead.',
         inputSchema: z.object({
           email: z.string().min(5).describe('The email address to invite'),
           role: z.string().optional().default('developer').describe('The role for the member (developer, admin, viewer)'),
@@ -763,6 +1204,107 @@ Always use the provided tools for actions.`
             }
           } catch (error: any) {
             return { success: false, error: error.message || 'Failed to invite team member' }
+          }
+        },
+      }),
+
+      inviteTeamMembers: tool({
+        description: 'Invite multiple team members at once. Accepts an array of email addresses with optional roles. Use this when the user asks to invite multiple people (e.g., "invite 10 team members", "invite john@example.com, jane@example.com, and bob@example.com").',
+        inputSchema: z.object({
+          invitations: z.array(z.object({
+            email: z.string().min(5).describe('The email address to invite (REQUIRED). Must be a valid email format.'),
+            role: z.string().optional().default('developer').describe('The role for the member (developer, admin, viewer)'),
+          })).min(1).describe('Array of invitations to send. Must contain at least 1 invitation.'),
+        }),
+        execute: async ({ invitations }) => {
+          try {
+            if (!invitations || invitations.length === 0) {
+              return { success: false, error: 'At least one invitation is required' }
+            }
+
+            const sentInvitations = []
+            const errors = []
+            const team = await db.team.findUnique({ where: { id: teamId } })
+            const inviterName = user.name || user.email || 'Someone'
+
+            for (const invitationData of invitations) {
+              try {
+                // Validate email format
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+                if (!emailRegex.test(invitationData.email)) {
+                  errors.push({ email: invitationData.email, error: 'Invalid email format' })
+                  continue
+                }
+
+                // Check if invitation already exists
+                const existingInvitation = await db.invitation.findUnique({
+                  where: {
+                    teamId_email: { teamId, email: invitationData.email },
+                  },
+                })
+
+                if (existingInvitation?.status === 'pending') {
+                  errors.push({ email: invitationData.email, error: 'Invitation already sent to this email' })
+                  continue
+                }
+
+                // Create invitation
+                const expiresAt = new Date()
+                expiresAt.setDate(expiresAt.getDate() + 7)
+
+                const invitation = await db.invitation.create({
+                  data: {
+                    teamId,
+                    email: invitationData.email,
+                    role: invitationData.role || 'developer',
+                    invitedBy: userId,
+                    status: 'pending',
+                    expiresAt,
+                  },
+                })
+
+                // Send email
+                if (process.env.RESEND_API_KEY) {
+                  try {
+                    await sendInvitationEmail({
+                      email: invitationData.email,
+                      teamName: team?.name || 'the team',
+                      inviterName,
+                      role: invitationData.role || 'developer',
+                      inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_URL}/invite/${invitation.id}`,
+                    })
+                  } catch (emailError) {
+                    console.error(`Error sending invitation email to ${invitationData.email}:`, emailError)
+                    // Don't fail the invitation if email fails
+                  }
+                }
+
+                sentInvitations.push({
+                  email: invitationData.email,
+                  role: invitationData.role || 'developer',
+                })
+              } catch (error: any) {
+                errors.push({ email: invitationData.email, error: error.message || 'Failed to send invitation' })
+              }
+            }
+
+            const successMessage = sentInvitations.length > 0
+              ? `Successfully sent ${sentInvitations.length} invitation${sentInvitations.length !== 1 ? 's' : ''} to: ${sentInvitations.map(i => i.email).join(', ')}`
+              : ''
+
+            const errorMessage = errors.length > 0
+              ? `Failed to send ${errors.length} invitation${errors.length !== 1 ? 's' : ''}: ${errors.map(e => `${e.email} (${e.error})`).join(', ')}`
+              : ''
+
+            return {
+              success: sentInvitations.length > 0,
+              invitations: sentInvitations,
+              message: [successMessage, errorMessage].filter(m => m).join('. '),
+              sentCount: sentInvitations.length,
+              failedCount: errors.length,
+            }
+          } catch (error: any) {
+            return { success: false, error: error.message || 'Failed to send invitations' }
           }
         },
       }),
@@ -1009,7 +1551,7 @@ Always use the provided tools for actions.`
     }
 
     // Convert UIMessages to ModelMessages
-    const modelMessages = convertToModelMessages([...conversationMessages, ...messages])
+    const modelMessages = convertToModelMessages(messages)
 
     // Create Groq provider with API key
     const groq = createGroq({
@@ -1025,46 +1567,8 @@ Always use the provided tools for actions.`
       stopWhen: stepCountIs(5), // Allow multi-step tool calls
     })
 
-    return result.toUIMessageStreamResponse({
-      onFinish: async ({ messages: finalMessages }) => {
-        // Save messages to database
-        if (conversationId && finalMessages) {
-          try {
-            // Verify conversation exists before trying to save messages
-            const conversation = await db.chatConversation.findUnique({
-              where: { id: conversationId },
-            })
-
-            if (conversation) {
-              await saveChatMessages({
-                conversationId,
-                messages: finalMessages.map(msg => {
-                  // Extract text content from parts array
-                  const textContent = msg.parts
-                    .filter(part => part.type === 'text')
-                    .map(part => part.text)
-                    .join(' ')
-                  
-                  // Extract tool calls from parts
-                  const toolCalls = msg.parts
-                    .filter(part => isToolUIPart(part))
-                    .map(part => part)
-                  
-                  return {
-                    role: msg.role,
-                    content: textContent || '',
-                    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-                  }
-                }),
-              })
-            }
-          } catch (error) {
-            console.error('Error saving chat messages:', error)
-            // Don't throw - we don't want to fail the response
-          }
-        }
-      },
-    })
+    const response = result.toUIMessageStreamResponse()
+    return response
   } catch (error) {
     console.error('Error in chat route:', error)
     return NextResponse.json(
