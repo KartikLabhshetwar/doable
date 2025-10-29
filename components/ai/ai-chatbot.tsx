@@ -14,6 +14,8 @@ interface AIChatbotProps {
 export function AIChatbot({ teamId }: AIChatbotProps) {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const processedMessageIdsRef = useRef<Set<string>>(new Set())
+  const previousStatusRef = useRef<string>('ready')
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
@@ -46,40 +48,162 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
     })
   }
 
-  // Listen for successful tool execution and trigger refresh
+  // Listen for tool executions and trigger refresh
   useEffect(() => {
-    // Dispatch refresh event after a short delay to allow the API to complete
-    const timer = setTimeout(() => {
-      if (messages.length > 0 && status === 'ready') {
-        // Check if the last message was from assistant (meaning an action was completed)
-        const lastMessage = messages[messages.length - 1]
-        if (lastMessage && lastMessage.role === 'assistant') {
-          // Check for tool calls in the message
-          const hasToolCalls = lastMessage.parts?.some((part: any) => part.type === 'tool-call')
+    const wasLoading = previousStatusRef.current !== 'ready'
+    const isReady = status === 'ready'
+
+    // When status changes from loading to ready, check for tool executions
+    if (isReady && wasLoading && messages.length > 0) {
+      let foundAnyTool = false
+      
+      // Check all unprocessed messages
+      messages.forEach((message) => {
+        if (!message.id || processedMessageIdsRef.current.has(message.id)) {
+          return
+        }
+
+        let toolNames: string[] = []
+        
+        // Check message parts for tool calls
+        if (message.parts && Array.isArray(message.parts)) {
+          message.parts.forEach((part: any) => {
+            if (part.type === 'tool-call' && part.toolName) {
+              toolNames.push(part.toolName)
+            }
+            if (part.toolName && !toolNames.includes(part.toolName)) {
+              toolNames.push(part.toolName)
+            }
+          })
+
+          // Check text content for success indicators
+          const textParts = message.parts
+            .filter((part: any) => part.type === 'text')
+            .map((part: any) => part.text || '')
+            .join(' ')
+            .toLowerCase()
           
-          if (hasToolCalls) {
-            // Find the tool names from the tool calls
-            const toolNames = lastMessage.parts
-              ?.filter((part: any) => part.type === 'tool-call')
-              .map((part: any) => part.toolName)
-              .join(' ') || ''
+          // Comprehensive detection patterns
+          if (textParts.length > 0) {
+            // Issue operations
+            if ((textParts.includes('issue') || textParts.includes('#') || textParts.includes('✔')) && 
+                (textParts.includes('created') || textParts.includes('has been created'))) {
+              if (!toolNames.includes('createIssue')) toolNames.push('createIssue')
+            }
+            if (textParts.includes('issue') && textParts.includes('updated')) {
+              if (!toolNames.includes('updateIssue')) toolNames.push('updateIssue')
+            }
+            if (textParts.includes('issue') && textParts.includes('deleted')) {
+              if (!toolNames.includes('deleteIssue')) toolNames.push('deleteIssue')
+            }
             
-            // Dispatch appropriate refresh events based on tool used
-            if (toolNames.includes('createProject') || toolNames.includes('updateProject')) {
-              window.dispatchEvent(new Event('refresh-projects'))
+            // Project operations - catch any mention of project creation
+            if (textParts.includes('project')) {
+              if (textParts.includes('created') || textParts.includes('has been created') || 
+                  textParts.includes('successfully') || textParts.includes('created successfully') ||
+                  textParts.includes('✔')) {
+                if (!toolNames.includes('createProject')) toolNames.push('createProject')
+              }
+              if (textParts.includes('updated')) {
+                if (!toolNames.includes('updateProject')) toolNames.push('updateProject')
+              }
+              if (textParts.includes('deleted') || textParts.includes('removed')) {
+                if (!toolNames.includes('deleteProject')) toolNames.push('deleteProject')
+              }
             }
-            if (toolNames.includes('inviteTeamMember')) {
-              window.dispatchEvent(new Event('refresh-people'))
+            
+            // People operations
+            if (textParts.includes('invited') || textParts.includes('invitation') || 
+                textParts.includes('team member')) {
+              if (!toolNames.includes('inviteTeamMember')) toolNames.push('inviteTeamMember')
             }
-            if (toolNames.includes('createIssue') || toolNames.includes('updateIssue') || toolNames.includes('deleteIssue')) {
-              window.dispatchEvent(new Event('refresh-issues'))
+            if (textParts.includes('invitation') && (textParts.includes('revoked') || 
+                textParts.includes('cancelled') || textParts.includes('removed') || textParts.includes('deleted'))) {
+              if (!toolNames.includes('revokeInvitation')) toolNames.push('revokeInvitation')
+            }
+            if (textParts.includes('team member') && (textParts.includes('removed') || 
+                textParts.includes('deleted'))) {
+              if (!toolNames.includes('removeTeamMember')) toolNames.push('removeTeamMember')
             }
           }
         }
+        
+        // Mark as processed
+        if (message.id) {
+          processedMessageIdsRef.current.add(message.id)
+        }
+        
+        // Dispatch refresh if we found tool indicators
+        if (toolNames.length > 0) {
+          foundAnyTool = true
+          const uniqueTools = [...new Set(toolNames)]
+          const toolString = uniqueTools.join(' ')
+          
+          // Dispatch specific refresh events
+          setTimeout(() => {
+            if (toolString.includes('createIssue') || toolString.includes('updateIssue') || toolString.includes('deleteIssue')) {
+              window.dispatchEvent(new Event('refresh-issues'))
+            }
+            if (toolString.includes('createProject') || toolString.includes('updateProject') || toolString.includes('deleteProject')) {
+              window.dispatchEvent(new Event('refresh-projects'))
+            }
+            if (toolString.includes('inviteTeamMember') || toolString.includes('revokeInvitation') || toolString.includes('removeTeamMember')) {
+              window.dispatchEvent(new Event('refresh-people'))
+            }
+          }, 400)
+        }
+      })
+      
+      // Fallback: Always refresh all resources when status becomes ready after loading
+      // This ensures UI updates even if tool detection fails
+      const lastMessage = messages[messages.length - 1]
+      if (lastMessage && lastMessage.role === 'assistant') {
+        setTimeout(() => {
+          // Always refresh all resources to ensure updates appear
+          window.dispatchEvent(new Event('refresh-issues'))
+          window.dispatchEvent(new Event('refresh-projects'))
+          window.dispatchEvent(new Event('refresh-people'))
+        }, 700)
       }
-    }, 1000)
+    }
 
-    return () => clearTimeout(timer)
+    previousStatusRef.current = status || 'ready'
+  }, [messages, status])
+
+  // Additional check: when messages change while ready, check for tool executions
+  useEffect(() => {
+    if (status === 'ready' && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1]
+      
+      // If we have a new assistant message that hasn't been processed, check it
+      if (lastMessage && lastMessage.role === 'assistant' && 
+          lastMessage.id && !processedMessageIdsRef.current.has(lastMessage.id)) {
+        
+        // Mark as processed first to avoid duplicate checks
+        processedMessageIdsRef.current.add(lastMessage.id)
+        
+        // Check text for any success indicators
+        if (lastMessage.parts && Array.isArray(lastMessage.parts)) {
+          const textParts = lastMessage.parts
+            .filter((part: any) => part.type === 'text')
+            .map((part: any) => part.text || '')
+            .join(' ')
+            .toLowerCase()
+          
+          // If message contains success indicators, refresh all resources
+          if (textParts.includes('created') || textParts.includes('successfully') || 
+              textParts.includes('updated') || textParts.includes('deleted') || 
+              textParts.includes('removed') || textParts.includes('revoked') || 
+              textParts.includes('cancelled') || textParts.includes('✔')) {
+            setTimeout(() => {
+              window.dispatchEvent(new Event('refresh-issues'))
+              window.dispatchEvent(new Event('refresh-projects'))
+              window.dispatchEvent(new Event('refresh-people'))
+            }, 500)
+          }
+        }
+      }
+    }
   }, [messages, status])
 
   return (

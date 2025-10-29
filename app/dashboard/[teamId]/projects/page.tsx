@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -64,25 +64,43 @@ export default function ProjectsPage() {
   // Toast notifications
   const { toasts, toast, removeToast } = useToast()
 
-  const fetchProjects = useCallback(async () => {
+  // Use ref to store latest fetchProjects to avoid stale closure issues
+  const fetchProjectsRef = useRef<((silentRefresh?: boolean) => Promise<void>) | null>(null)
+
+  const fetchProjects = useCallback(async (silentRefresh = false) => {
     try {
-      setLoading(true)
+      // Only show loading on initial load, not on silent refreshes
+      if (!silentRefresh) {
+        setLoading(true)
+      }
       setError(null)
-      const response = await fetch(`/api/teams/${teamId}/projects`)
+      const response = await fetch(`/api/teams/${teamId}/projects`, {
+        cache: silentRefresh ? 'no-store' : 'default',
+      })
       
       if (!response.ok) {
         throw new Error('Failed to fetch projects')
       }
       
       const data = await response.json()
-      setProjects(data)
+      // Force React to re-render by creating new array reference
+      setProjects([...data])
     } catch (error) {
       console.error('Error fetching projects:', error)
-      setError('Failed to load projects. Please try again.')
+      if (!silentRefresh) {
+        setError('Failed to load projects. Please try again.')
+      }
     } finally {
-      setLoading(false)
+      if (!silentRefresh) {
+        setLoading(false)
+      }
     }
   }, [teamId])
+
+  // Keep ref updated with latest fetchProjects
+  useEffect(() => {
+    fetchProjectsRef.current = fetchProjects
+  }, [fetchProjects])
 
   useEffect(() => {
     fetchProjects()
@@ -91,15 +109,20 @@ export default function ProjectsPage() {
   // Add event listener to refresh projects when chatbot creates/updates projects
   useEffect(() => {
     const handleRefresh = () => {
-      fetchProjects()
+      // Fetch immediately - use small delay to ensure backend is ready
+      setTimeout(() => {
+        if (fetchProjectsRef.current) {
+          fetchProjectsRef.current(true)
+        }
+      }, 50)
     }
 
     window.addEventListener('refresh-projects', handleRefresh)
-
+    
     return () => {
       window.removeEventListener('refresh-projects', handleRefresh)
     }
-  }, [fetchProjects])
+  }, [])
 
   const handleProjectEdit = (project: ProjectWithRelations) => {
     setCurrentProject(project)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -96,6 +96,9 @@ export default function IssuesPage() {
   const [labels, setLabels] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [issuesLoading, setIssuesLoading] = useState(false)
+  
+  // Use ref to store latest fetchIssues to avoid stale closure issues
+  const fetchIssuesRef = useRef<((forceRefresh?: boolean, silentRefresh?: boolean) => Promise<void>) | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editDialogOpenForAssign, setEditDialogOpenForAssign] = useState(false)
@@ -181,18 +184,23 @@ export default function IssuesPage() {
     }
   }
 
-  const fetchIssues = useCallback(async (forceRefresh = false) => {
+  const fetchIssues = useCallback(async (forceRefresh = false, silentRefresh = false) => {
     // Create cache key dynamically
     const issuesCacheKey = `issues-${teamId}-${JSON.stringify(filters)}-${JSON.stringify(sort)}`
     try {
-      setIssuesLoading(true)
+      // Only show loading skeleton on initial load, not on silent refreshes
+      if (!silentRefresh) {
+        setIssuesLoading(true)
+      }
       
       // Check cache first (unless forcing refresh)
       if (!forceRefresh) {
         const cachedIssues = getCachedData(issuesCacheKey)
         if (cachedIssues) {
           setIssues(cachedIssues)
-          setIssuesLoading(false)
+          if (!silentRefresh) {
+            setIssuesLoading(false)
+          }
           return
         }
       }
@@ -212,7 +220,9 @@ export default function IssuesPage() {
       searchParams.append('sortField', sort.field)
       searchParams.append('sortDirection', sort.direction)
 
-      const response = await fetch(`/api/teams/${teamId}/issues?${searchParams}`)
+      const response = await fetch(`/api/teams/${teamId}/issues?${searchParams}`, {
+        cache: forceRefresh ? 'no-store' : 'default',
+      })
       
       if (!response.ok) {
         throw new Error('Failed to fetch issues')
@@ -222,14 +232,24 @@ export default function IssuesPage() {
       
       // Cache the issues
       setCachedData(issuesCacheKey, data)
-      setIssues(data)
+      // Force React to re-render by creating new array reference
+      setIssues([...data])
     } catch (error) {
       console.error('Error fetching issues:', error)
-      toast.error('Failed to load issues', 'Please try again.')
+      if (!silentRefresh) {
+        toast.error('Failed to load issues', 'Please try again.')
+      }
     } finally {
-      setIssuesLoading(false)
+      if (!silentRefresh) {
+        setIssuesLoading(false)
+      }
     }
   }, [teamId, filters, sort, toast])
+  
+  // Keep ref updated with latest fetchIssues
+  useEffect(() => {
+    fetchIssuesRef.current = fetchIssues
+  }, [fetchIssues])
 
   // Memoized cache keys
   const cacheKeys = useMemo(() => ({
@@ -256,17 +276,23 @@ export default function IssuesPage() {
   // Add event listener to refresh issues when chatbot creates/updates issues
   useEffect(() => {
     const handleRefresh = () => {
-      // Clear cache and force fresh fetch
+      // Clear all cache to force fresh fetch
       clearAllCachedData()
-      fetchIssues(true)
+      
+      // Fetch immediately - use small delay to ensure backend is ready
+      setTimeout(() => {
+        if (fetchIssuesRef.current) {
+          fetchIssuesRef.current(true, true)
+        }
+      }, 50)
     }
 
     window.addEventListener('refresh-issues', handleRefresh)
-
+    
     return () => {
       window.removeEventListener('refresh-issues', handleRefresh)
     }
-  }, [fetchIssues])
+  }, [])
 
   const handleIssueView = (issue: IssueWithRelations) => {
     // For now, just open the edit dialog to view details

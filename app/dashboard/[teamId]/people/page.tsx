@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -68,17 +68,30 @@ export default function PeoplePage() {
 
   const { toasts, toast, removeToast } = useToast()
 
-  const fetchData = useCallback(async () => {
+  // Use ref to store latest fetchData to avoid stale closure issues
+  const fetchDataRef = useRef<((silentRefresh?: boolean) => Promise<void>) | null>(null)
+
+  const fetchData = useCallback(async (silentRefresh = false) => {
     try {
+      // Only show loading on initial load, not on silent refreshes
+      if (!silentRefresh) {
+        setLoading(true)
+      }
+      
       const [membersRes, invitationsRes, sessionRes] = await Promise.all([
-        fetch(`/api/teams/${teamId}/members`),
-        fetch(`/api/teams/${teamId}/invitations`),
+        fetch(`/api/teams/${teamId}/members`, {
+          cache: silentRefresh ? 'no-store' : 'default',
+        }),
+        fetch(`/api/teams/${teamId}/invitations`, {
+          cache: silentRefresh ? 'no-store' : 'default',
+        }),
         fetch('/api/auth/get-session')
       ])
 
       if (membersRes.ok) {
         const membersData = await membersRes.json()
-        setMembers(membersData)
+        // Force React to re-render by creating new array reference
+        setMembers([...membersData])
         
         // Get current user's role from session
         if (sessionRes.ok) {
@@ -113,36 +126,48 @@ export default function PeoplePage() {
 
       if (invitationsRes.ok) {
         const invitationsData = await invitationsRes.json()
-        setInvitations(invitationsData)
+        // Force React to re-render by creating new array reference
+        setInvitations([...invitationsData])
       }
     } catch (error) {
       console.error('Error fetching data:', error)
-      toast.error('Failed to load data', 'Please try again.')
+      if (!silentRefresh) {
+        toast.error('Failed to load data', 'Please try again.')
+      }
+    } finally {
+      if (!silentRefresh) {
+        setLoading(false)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId])
 
+  // Keep ref updated with latest fetchData
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true)
-      await fetchData()
-      setLoading(false)
-    }
-    loadData()
+    fetchDataRef.current = fetchData
+  }, [fetchData])
+
+  useEffect(() => {
+    fetchData() // fetchData already handles loading state
   }, [fetchData])
 
   // Add event listener to refresh people when chatbot invites team members
   useEffect(() => {
     const handleRefresh = () => {
-      fetchData()
+      // Fetch immediately - use small delay to ensure backend is ready
+      setTimeout(() => {
+        if (fetchDataRef.current) {
+          fetchDataRef.current(true)
+        }
+      }, 50)
     }
 
     window.addEventListener('refresh-people', handleRefresh)
-
+    
     return () => {
       window.removeEventListener('refresh-people', handleRefresh)
     }
-  }, [fetchData])
+  }, [])
 
   const handleInvite = async () => {
     if (!inviteEmail || !inviteEmail.includes('@')) {

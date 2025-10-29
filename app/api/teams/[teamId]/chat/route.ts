@@ -11,7 +11,7 @@ import { updateIssue } from '@/lib/api/issues'
 import { getIssues } from '@/lib/api/issues'
 import { getIssueById } from '@/lib/api/issues'
 import { deleteIssue } from '@/lib/api/issues'
-import { createProject, updateProject } from '@/lib/api/projects'
+import { createProject, updateProject, deleteProject } from '@/lib/api/projects'
 import { sendInvitationEmail } from '@/lib/email'
 import { stepCountIs } from 'ai'
 
@@ -808,6 +808,201 @@ Always use the provided tools for actions.`
             }
           } catch (error: any) {
             return { success: false, error: error.message || 'Failed to get team stats' }
+          }
+        },
+      }),
+
+      deleteProject: tool({
+        description: 'Delete a project by name or ID. This will permanently remove the project and all associated issues.',
+        inputSchema: z.object({
+          projectId: z.string().optional().describe('The ID of the project to delete'),
+          name: z.string().optional().describe('The name of the project to find and delete (if projectId not provided)'),
+        }),
+        execute: async ({ projectId, name }) => {
+          try {
+            let resolvedProjectId = projectId
+
+            // If name is provided, find the project by name
+            if (name && !projectId) {
+              const projects = teamContext.projects
+              const matchingProjects = projects.filter(
+                (project) => project.name.toLowerCase().includes(name.toLowerCase())
+              )
+
+              if (matchingProjects.length === 0) {
+                return { success: false, error: `No project found with name "${name}"` }
+              }
+
+              if (matchingProjects.length > 1) {
+                return {
+                  success: false,
+                  error: `Multiple projects found matching "${name}": ${matchingProjects.map(p => `${p.name} (${p.key})`).join(', ')}. Please be more specific with the project name or use the project ID.`,
+                }
+              }
+
+              resolvedProjectId = matchingProjects[0].id
+            }
+
+            if (!resolvedProjectId) {
+              return { success: false, error: 'Either projectId or name must be provided' }
+            }
+
+            // Get project details before deleting
+            const project = await db.project.findUnique({
+              where: { id: resolvedProjectId, teamId },
+            })
+
+            if (!project) {
+              return { success: false, error: 'Project not found' }
+            }
+
+            // Delete the project
+            await deleteProject(teamId, resolvedProjectId)
+
+            return {
+              success: true,
+              message: `Project "${project.name}" has been deleted successfully.`,
+            }
+          } catch (error: any) {
+            return { success: false, error: error.message || 'Failed to delete project' }
+          }
+        },
+      }),
+
+      revokeInvitation: tool({
+        description: 'Revoke or cancel a pending team invitation by email or invitation ID',
+        inputSchema: z.object({
+          invitationId: z.string().optional().describe('The ID of the invitation to revoke'),
+          email: z.string().optional().describe('The email address of the pending invitation to revoke (if invitationId not provided)'),
+        }),
+        execute: async ({ invitationId, email }) => {
+          try {
+            let resolvedInvitationId = invitationId
+
+            // If email is provided, find the invitation by email
+            if (email && !invitationId) {
+              const invitation = await db.invitation.findUnique({
+                where: {
+                  teamId_email: { teamId, email },
+                },
+              })
+
+              if (!invitation) {
+                return { success: false, error: `No pending invitation found for email "${email}"` }
+              }
+
+              if (invitation.status !== 'pending') {
+                return { success: false, error: `Invitation for "${email}" is not pending (status: ${invitation.status})` }
+              }
+
+              resolvedInvitationId = invitation.id
+            }
+
+            if (!resolvedInvitationId) {
+              return { success: false, error: 'Either invitationId or email must be provided' }
+            }
+
+            // Get invitation details before deleting
+            const invitation = await db.invitation.findUnique({
+              where: { id: resolvedInvitationId, teamId },
+            })
+
+            if (!invitation) {
+              return { success: false, error: 'Invitation not found' }
+            }
+
+            // Delete the invitation
+            await db.invitation.delete({
+              where: { id: resolvedInvitationId, teamId },
+            })
+
+            return {
+              success: true,
+              message: `Invitation for "${invitation.email}" has been revoked successfully.`,
+            }
+          } catch (error: any) {
+            return { success: false, error: error.message || 'Failed to revoke invitation' }
+          }
+        },
+      }),
+
+      removeTeamMember: tool({
+        description: 'Remove a team member from the workspace by user ID, email, or name. Only admins can remove team members.',
+        inputSchema: z.object({
+          memberId: z.string().optional().describe('The team member ID to remove'),
+          userId: z.string().optional().describe('The user ID of the member to remove (if memberId not provided)'),
+          email: z.string().optional().describe('The email address of the member to remove (if memberId or userId not provided)'),
+          name: z.string().optional().describe('The name of the member to remove (if memberId, userId, or email not provided)'),
+        }),
+        execute: async ({ memberId, userId, email, name }) => {
+          try {
+            let resolvedMemberId = memberId
+
+            // If user identifier is provided, find the member
+            if (!memberId && (userId || email || name)) {
+              const members = await db.teamMember.findMany({
+                where: { teamId },
+              })
+
+              let matchingMember
+              if (userId) {
+                matchingMember = members.find(m => m.userId === userId)
+              } else if (email) {
+                matchingMember = members.find(m => m.userEmail?.toLowerCase() === email.toLowerCase())
+              } else if (name) {
+                matchingMember = members.find(m => 
+                  m.userName?.toLowerCase().includes(name.toLowerCase())
+                )
+              }
+
+              if (!matchingMember) {
+                return { success: false, error: 'Team member not found' }
+              }
+
+              resolvedMemberId = matchingMember.id
+            }
+
+            if (!resolvedMemberId) {
+              return { success: false, error: 'Either memberId, userId, email, or name must be provided' }
+            }
+
+            // Check if current user is an admin
+            const currentMember = await db.teamMember.findFirst({
+              where: {
+                teamId,
+                userId,
+              },
+            })
+
+            if (!currentMember || currentMember.role !== 'admin') {
+              return { success: false, error: 'Only admins can remove team members' }
+            }
+
+            // Get member details before deleting
+            const member = await db.teamMember.findUnique({
+              where: { id: resolvedMemberId },
+            })
+
+            if (!member || member.teamId !== teamId) {
+              return { success: false, error: 'Team member not found' }
+            }
+
+            // Check if trying to remove yourself
+            if (member.userId === userId) {
+              return { success: false, error: 'Cannot remove yourself from the team' }
+            }
+
+            // Delete the member
+            await db.teamMember.delete({
+              where: { id: resolvedMemberId },
+            })
+
+            return {
+              success: true,
+              message: `Team member "${member.userName || member.userEmail}" has been removed successfully.`,
+            }
+          } catch (error: any) {
+            return { success: false, error: error.message || 'Failed to remove team member' }
           }
         },
       }),
