@@ -62,6 +62,17 @@ Workflow States: ${teamContext.workflowStates.map(s => s.name).join(', ')}
 Available Labels: ${teamContext.labels.map(l => l.name).join(', ')}
 Team Members: ${teamContext.members.map(m => m.userName).join(', ') || 'None'}
 
+## Important Rules for Creating Issues
+
+When creating an issue, you MUST collect:
+1. Title (required)
+2. Status/Workflow State (required)
+3. Priority level (required - must ask user: low, medium, high, urgent, or none)
+4. Project (required - must ask user which project to add the issue to)
+
+DO NOT create an issue without a priority - always ask the user to specify a priority level first. Do not default to "none" unless the user explicitly says they want none.
+DO NOT create an issue without a project - always ask the user which project to add the issue to. Show available projects if available.
+
 When user asks to see issues or lists tasks, ALWAYS call the listIssues tool WITHOUT a limit parameter to get ALL issues. 
 Display the results as a bullet list with clear formatting.
 When user provides minimal information, ask ONE follow-up question at a time.
@@ -92,14 +103,14 @@ Always use the provided tools for actions.`
     // Define tools for the AI
     const tools = {
       createIssue: tool({
-        description: 'Create a new issue. You can use workflow state names (like "Todo", "In Progress", "Done") and they will be automatically matched to IDs. Same for project names, assignee names, and label names. If any required information is missing, ask the user for it.',
+        description: 'Create a new issue. You can use workflow state names (like "Todo", "In Progress", "Done") and they will be automatically matched to IDs. Same for project names, assignee names, and label names. If any required information is missing (title, status, priority, or project), ask the user for it. Do not default priority to "none" - always ask the user to specify a priority level. Always ask which project the issue should be added to if not provided.',
         inputSchema: z.object({
           title: z.string().nullish().describe('The title of the issue (REQUIRED)'),
           description: z.string().nullish().describe('A detailed description of the issue'),
-          projectId: z.string().nullish().describe('The project ID, key, or name (e.g., "testing" or project name) this issue belongs to'),
+          projectId: z.string().nullish().describe('The project ID, key, or name (e.g., "testing" or project name) this issue belongs to (REQUIRED). Do not call this tool with project missing - always ask the user to specify which project to add the issue to.'),
           workflowStateId: z.string().nullish().describe('The workflow state ID or name (e.g., "Todo", "In Progress", "Done") (REQUIRED)'),
           assigneeId: z.string().nullish().describe('The user ID or name (e.g., "kartik") to assign this issue to'),
-          priority: z.enum(['none', 'low', 'medium', 'high', 'urgent']).nullish().default('none'),
+          priority: z.enum(['none', 'low', 'medium', 'high', 'urgent']).nullish().describe('The priority level (REQUIRED - must be one of: low, medium, high, urgent, or none). Do not call this tool with priority missing or defaulted to "none" - always ask the user to specify a priority first.'),
           estimate: z.number().nullish().describe('Story points or hours estimate'),
           labelIds: z.array(z.string()).nullish().describe('Array of label names or IDs (e.g., ["Bug", "Feature", "Documentation", "Enhancement"])'),
         }),
@@ -116,7 +127,67 @@ Always use the provided tools for actions.`
               missingFields.push('status (workflow state)')
             }
             
+            // Check if priority is missing - only null/undefined means missing, 'none' is a valid value if explicitly provided
+            if (priority === null || priority === undefined) {
+              missingFields.push('priority')
+            }
+            
+            // Check if project is missing
+            if (projectId === null || projectId === undefined || !projectId || projectId === 'null' || projectId === 'undefined') {
+              missingFields.push('project')
+            }
+            
             if (missingFields.length > 0) {
+              // Special message for priority to make it clearer
+              if (missingFields.includes('priority') && missingFields.length === 1) {
+                return {
+                  success: false,
+                  error: `To create this issue, I need to know the priority level. Please specify a priority: low, medium, high, urgent, or none.`,
+                }
+              }
+              
+              // Special message for project to make it clearer
+              if (missingFields.includes('project') && missingFields.length === 1) {
+                const availableProjects = teamContext.projects.length > 0 
+                  ? teamContext.projects.map(p => `${p.name} (${p.key})`).join(', ')
+                  : 'No projects available'
+                return {
+                  success: false,
+                  error: `To create this issue, I need to know which project to add it to. ${teamContext.projects.length > 0 ? `Available projects: ${availableProjects}. Please specify which project this issue should be added to.` : 'Please create a project first or specify an existing project.'}`,
+                }
+              }
+              
+              // Handle combinations with priority
+              if (missingFields.includes('priority') && missingFields.includes('project') && missingFields.length === 2) {
+                const availableProjects = teamContext.projects.length > 0 
+                  ? teamContext.projects.map(p => `${p.name} (${p.key})`).join(', ')
+                  : 'No projects available'
+                return {
+                  success: false,
+                  error: `To create this issue, I need two things: (1) the priority level (low, medium, high, urgent, or none), and (2) which project to add it to. ${teamContext.projects.length > 0 ? `Available projects: ${availableProjects}.` : 'Please create a project first or specify an existing project.'}`,
+                }
+              }
+              
+              // Handle combinations including other fields
+              if (missingFields.includes('priority')) {
+                const otherFields = missingFields.filter(f => f !== 'priority')
+                return {
+                  success: false,
+                  error: `Missing required information: ${otherFields.join(', ')}, and priority. Please provide ${otherFields.length === 1 ? 'this' : 'these'} along with a priority level (low, medium, high, urgent, or none) to create the issue.`,
+                }
+              }
+              
+              if (missingFields.includes('project')) {
+                const otherFields = missingFields.filter(f => f !== 'project')
+                const availableProjects = teamContext.projects.length > 0 
+                  ? teamContext.projects.map(p => `${p.name} (${p.key})`).join(', ')
+                  : 'No projects available'
+                return {
+                  success: false,
+                  error: `Missing required information: ${otherFields.join(', ')}, and project. Please provide ${otherFields.length === 1 ? 'this' : 'these'} along with a project. ${teamContext.projects.length > 0 ? `Available projects: ${availableProjects}.` : 'Please create a project first or specify an existing project.'}`,
+                }
+              }
+              
               return {
                 success: false,
                 error: `Missing required information: ${missingFields.join(', ')}. Please provide ${missingFields.length === 1 ? 'this' : 'these'} to create the issue.`,
@@ -140,6 +211,15 @@ Always use the provided tools for actions.`
               )
               if (project) {
                 resolvedProjectId = project.id
+              } else {
+                // Project was provided but not found
+                const availableProjects = teamContext.projects.length > 0 
+                  ? teamContext.projects.map(p => `${p.name} (${p.key})`).join(', ')
+                  : 'No projects available'
+                return {
+                  success: false,
+                  error: `The project "${projectId}" was not found. ${teamContext.projects.length > 0 ? `Available projects: ${availableProjects}. Please specify a valid project name, key, or ID.` : 'Please create a project first or specify an existing project.'}`,
+                }
               }
             }
 
@@ -165,19 +245,24 @@ Always use the provided tools for actions.`
               })
             }
 
-            // Type assertion is safe here because we already validated title and workflowStateId exist
+            // Type assertion is safe here because we already validated title, workflowStateId, priority, and projectId exist
             const issueTitle = title || ''
             const issueWorkflowStateId = workflowStateId || defaultWorkflowState?.id || teamContext.workflowStates[0]?.id || ''
+            // Priority is validated above, so we know it's provided (not null/undefined)
+            // If it's explicitly 'none', that's a valid choice from the user
+            const issuePriority = priority ?? 'none'
+            // Project is validated and resolved above, so we know it exists
+            const issueProjectId = resolvedProjectId!
             
             const issue = await createIssue(
               teamId,
               {
                 title: issueTitle,
                 description: description || undefined,
-                projectId: resolvedProjectId || undefined,
+                projectId: issueProjectId,
                 workflowStateId: resolvedWorkflowStateId!,
                 assigneeId: resolvedAssigneeId || undefined,
-                priority: priority ?? 'none',
+                priority: issuePriority,
                 estimate: estimate || undefined,
                 labelIds: resolvedLabelIds || undefined,
               },
