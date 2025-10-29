@@ -344,15 +344,21 @@ Always use the provided tools for actions.`
               }
             }
 
-            // Resolve assignee by name or ID
+            // Resolve assignee by name or ID and get the assignee name
             let resolvedAssigneeId = assigneeId
-            if (assigneeId) {
+            let resolvedAssigneeName: string | null = null
+            if (assigneeId && assigneeId !== 'unassigned' && assigneeId !== 'null' && assigneeId !== 'undefined') {
               const member = teamContext.members.find(
                 (m) => m.userId === assigneeId || m.userName.toLowerCase() === assigneeId.toLowerCase()
               )
               if (member) {
                 resolvedAssigneeId = member.userId
+                resolvedAssigneeName = member.userName
               }
+            } else if (assigneeId === null || assigneeId === 'unassigned' || assigneeId === 'null' || assigneeId === 'undefined') {
+              // Explicitly unassign
+              resolvedAssigneeId = null
+              resolvedAssigneeName = null
             }
 
             // Resolve labels by name or ID
@@ -370,7 +376,10 @@ Always use the provided tools for actions.`
               ...(newTitle && { title: newTitle }),
               ...(description !== undefined && { description }),
               ...(resolvedWorkflowStateId && { workflowStateId: resolvedWorkflowStateId }),
-              ...(resolvedAssigneeId !== undefined && { assigneeId: resolvedAssigneeId }),
+              ...(assigneeId !== undefined && { 
+                assigneeId: resolvedAssigneeId ?? null,
+                assignee: resolvedAssigneeName
+              }),
               ...(priority && { priority }),
               ...(estimate && { estimate }),
               ...(resolvedLabelIds && { labelIds: resolvedLabelIds }),
