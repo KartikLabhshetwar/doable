@@ -12,9 +12,10 @@ import { authClient } from '@/lib/auth-client'
 
 interface ServerTeamCreatorProps {
   onTeamCreated?: (team: any) => void
+  inDialog?: boolean
 }
 
-export function ServerTeamCreator({ onTeamCreated }: ServerTeamCreatorProps) {
+export function ServerTeamCreator({ onTeamCreated, inDialog = false }: ServerTeamCreatorProps) {
   const [teamName, setTeamName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const { toast } = useToast()
@@ -59,6 +60,55 @@ export function ServerTeamCreator({ onTeamCreated }: ServerTeamCreatorProps) {
     }
   }
 
+  const formContent = (
+    <form onSubmit={handleCreateTeam} className="space-y-4">
+      <div>
+        <Label htmlFor="teamName">Team Name</Label>
+        <Input
+          id="teamName"
+          placeholder="Enter team name"
+          value={teamName}
+          onChange={(e) => setTeamName(e.target.value)}
+          disabled={isCreating}
+          required
+        />
+      </div>
+      <Button 
+        type="submit" 
+        className="w-full" 
+        disabled={isCreating || !teamName.trim()}
+      >
+        {isCreating ? (
+          <div className="flex items-center justify-center">
+            <span className="mr-2">Creating Team...</span>
+          </div>
+        ) : (
+          <>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Team
+          </>
+        )}
+      </Button>
+      {isCreating && (
+        <div className="flex items-center justify-center pt-2">
+          <Spinner size="sm" />
+        </div>
+      )}
+    </form>
+  )
+
+  if (inDialog) {
+    return (
+      <div className="space-y-4">
+        <div className="text-center flex items-center justify-center gap-2">
+          <Plus className="h-5 w-5" />
+          <h2 className="text-lg font-semibold">Create New Team</h2>
+        </div>
+        {formContent}
+      </div>
+    )
+  }
+
   return (
     <Card className="max-w-md w-full">
       <CardHeader>
@@ -68,40 +118,7 @@ export function ServerTeamCreator({ onTeamCreated }: ServerTeamCreatorProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleCreateTeam} className="space-y-4">
-          <div>
-            <Label htmlFor="teamName">Team Name</Label>
-            <Input
-              id="teamName"
-              placeholder="Enter team name"
-              value={teamName}
-              onChange={(e) => setTeamName(e.target.value)}
-              disabled={isCreating}
-              required
-            />
-          </div>
-          <Button 
-            type="submit" 
-            className="w-full" 
-            disabled={isCreating || !teamName.trim()}
-          >
-            {isCreating ? (
-              <div className="flex items-center justify-center">
-                <span className="mr-2">Creating Team...</span>
-              </div>
-            ) : (
-              <>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Team
-              </>
-            )}
-          </Button>
-          {isCreating && (
-            <div className="flex items-center justify-center pt-2">
-              <Spinner size="sm" />
-            </div>
-          )}
-        </form>
+        {formContent}
       </CardContent>
     </Card>
   )

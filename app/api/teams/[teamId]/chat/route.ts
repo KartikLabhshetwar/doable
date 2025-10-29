@@ -522,11 +522,11 @@ Always use the provided tools for actions.`
       }),
 
       createProject: tool({
-        description: 'Create a new project. The color parameter is optional and defaults to #6366f1 if not provided. The status parameter is optional and defaults to "active" if not provided.',
+        description: 'Create a new project. The name and key are REQUIRED. If any required information is missing (name or key), ask the user for it. The color parameter is optional and defaults to #6366f1 if not provided. The status parameter is optional and defaults to "active" if not provided.',
         inputSchema: z.object({
-          name: z.string().describe('The name of the project'),
+          name: z.string().nullish().describe('The name of the project (REQUIRED). Do not call this tool with name missing - always ask the user to specify the project name first.'),
           description: z.string().optional(),
-          key: z.string().describe('A 3-letter project identifier'),
+          key: z.string().nullish().describe('A 3-letter project identifier (REQUIRED). Do not call this tool with key missing - always ask the user to specify a 3-letter project key first.'),
           color: z.string().optional(),
           icon: z.string().optional(),
           leadId: z.string().optional(),
@@ -534,15 +534,58 @@ Always use the provided tools for actions.`
         }),
         execute: async ({ name, description, key, color, icon, leadId, status }) => {
           try {
+            // Check for missing required fields and ask user for them
+            const missingFields = []
+            
+            if (!name || name === 'null' || name === 'undefined') {
+              missingFields.push('name')
+            }
+            
+            if (!key || key === 'null' || key === 'undefined') {
+              missingFields.push('key (3-letter project identifier)')
+            }
+            
+            if (missingFields.length > 0) {
+              // Special message for key
+              if (missingFields.includes('key (3-letter project identifier)') && missingFields.length === 1) {
+                return {
+                  success: false,
+                  error: 'To create a project, I need a 3-letter project identifier (key). Please provide a short 3-letter code for this project (e.g., "WEB", "API", "MOB").',
+                }
+              }
+              
+              // Special message for name
+              if (missingFields.includes('name') && missingFields.length === 1) {
+                return {
+                  success: false,
+                  error: 'To create a project, I need the project name. Please specify what you would like to name this project.',
+                }
+              }
+              
+              // Combined message
+              return {
+                success: false,
+                error: `To create a project, I need both: (1) the project name, and (2) a 3-letter project identifier (key). Please provide ${missingFields.length === 1 ? 'this' : 'these'} to proceed.`,
+              }
+            }
+
+            // Validate key length if provided
+            if (key && key.length !== 3) {
+              return {
+                success: false,
+                error: `The project key must be exactly 3 letters. You provided "${key}" which is ${key.length} character${key.length !== 1 ? 's' : ''}. Please provide a 3-letter key (e.g., "WEB", "API", "MOB").`,
+              }
+            }
+            
             // Default color if not provided
             const projectColor = color || '#6366f1'
             // Default status if not provided
             const projectStatus = status || 'active'
             
             const project = await createProject(teamId, {
-              name,
+              name: name!,
               description,
-              key,
+              key: key!,
               color: projectColor,
               icon,
               leadId,

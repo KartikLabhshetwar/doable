@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Users, Plus } from 'lucide-react'
 import { ServerTeamCreator } from './server-team-creator'
 import { Spinner } from '@/components/ui/spinner'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 
 interface TeamSelectorProps {
   onCreateTeam?: () => void
@@ -63,6 +64,9 @@ export function TeamSelector({ onCreateTeam }: TeamSelectorProps) {
   }
 
   const handleTeamCreated = async (team: any) => {
+    // Close the dialog if it was open
+    setShowTeamCreator(false)
+    
     // Refresh the teams list to show the new team
     await fetchTeams()
     
@@ -123,54 +127,62 @@ export function TeamSelector({ onCreateTeam }: TeamSelectorProps) {
   }
 
   return (
-    <div className="flex items-center justify-center h-screen w-screen">
-      <Card className="max-w-md w-full">
-        <CardHeader>
-          <CardTitle className="text-center flex items-center justify-center gap-2">
-            <Users className="h-5 w-5" />
-            Select Team
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-center text-muted-foreground">
-            Choose a team to get started
-          </p>
-          
-          <div className="space-y-2">
-            {teams.map((team) => (
-              <Button
-                key={team.id}
-                variant="outline"
-                className="w-full justify-start h-auto p-4"
-                onClick={() => handleSelectTeam(team.id)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium text-blue-600">
-                      {team.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="text-left">
-                    <div className="font-medium">{team.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Team members
+    <>
+      <div className="flex items-center justify-center h-screen w-screen">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle className="text-center flex items-center justify-center gap-2">
+              <Users className="h-5 w-5" />
+              Select Team
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-center text-muted-foreground">
+              Choose a team to get started
+            </p>
+            
+            <div className="space-y-2">
+              {teams.map((team) => (
+                <Button
+                  key={team.id}
+                  variant="outline"
+                  className="w-full justify-start h-auto p-4"
+                  onClick={() => handleSelectTeam(team.id)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-sm font-medium text-blue-600">
+                        {team.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="text-left">
+                      <div className="font-medium">{team.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Team members
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Button>
-            ))}
-          </div>
-          
-          <Button 
-            onClick={() => setShowTeamCreator(true)}
-            variant="ghost"
-            className="w-full"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Create New Team
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+                </Button>
+              ))}
+            </div>
+            
+            <Button 
+              onClick={() => setShowTeamCreator(true)}
+              variant="ghost"
+              className="w-full"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create New Team
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+      
+      <Dialog open={showTeamCreator} onOpenChange={setShowTeamCreator}>
+        <DialogContent className="sm:max-w-md">
+          <ServerTeamCreator onTeamCreated={handleTeamCreated} inDialog={true} />
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
