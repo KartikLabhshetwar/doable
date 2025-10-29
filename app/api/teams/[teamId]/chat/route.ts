@@ -235,7 +235,7 @@ Always use the provided tools for actions.`
               teamId,
               {
                 title: issueTitle,
-                description: description || undefined,
+                description: description ?? undefined,
                 projectId: issueProjectId,
                 workflowStateId: resolvedWorkflowStateId!,
                 assigneeId: resolvedAssigneeId || undefined,
@@ -273,7 +273,7 @@ Always use the provided tools for actions.`
         inputSchema: z.object({
           issues: z.array(z.object({
             title: z.string().nullish().describe('The title of the issue (REQUIRED)'),
-            description: z.string().optional(),
+            description: z.string().nullish(),
             projectId: z.string().nullish().describe('The project ID, key, or name (REQUIRED)'),
             workflowStateId: z.string().nullish().describe('The workflow state ID or name (e.g., "Todo", "In Progress", "Done") (REQUIRED)'),
             assigneeId: z.string().optional().describe('The user ID or name to assign this issue to'),
@@ -369,7 +369,7 @@ Always use the provided tools for actions.`
                   teamId,
                   {
                     title: issueData.title!,
-                    description: issueData.description || undefined,
+                    description: issueData.description ?? undefined,
                     projectId: project.id,
                     workflowStateId: resolvedWorkflowStateId!,
                     assigneeId: resolvedAssigneeId || undefined,
@@ -499,7 +499,7 @@ Always use the provided tools for actions.`
 
             const issue = await updateIssue(teamId, resolvedIssueId, {
               ...(newTitle && { title: newTitle }),
-              ...(description !== undefined && { description }),
+              ...(description !== undefined && description !== null && { description }),
               ...(resolvedWorkflowStateId && { workflowStateId: resolvedWorkflowStateId }),
               ...(assigneeId !== undefined && { 
                 assigneeId: resolvedAssigneeId ?? null,
@@ -653,7 +653,7 @@ Always use the provided tools for actions.`
             issueId: z.string().optional().describe('The ID of the issue to update'),
             title: z.string().optional().describe('The title of the issue to find (if issueId not provided)'),
             newTitle: z.string().optional(),
-            description: z.string().optional(),
+            description: z.string().nullish(),
             workflowStateId: z.string().optional().describe('The new workflow state ID or name'),
             assigneeId: z.string().nullish().describe('The user ID or name to assign this issue to'),
             priority: z.enum(['none', 'low', 'medium', 'high', 'urgent']).optional(),
@@ -734,7 +734,7 @@ Always use the provided tools for actions.`
 
                 const issue = await updateIssue(teamId, resolvedIssueId, {
                   ...(updateData.newTitle && { title: updateData.newTitle }),
-                  ...(updateData.description !== undefined && { description: updateData.description }),
+                  ...(updateData.description !== undefined && updateData.description !== null && { description: updateData.description }),
                   ...(resolvedWorkflowStateId && { workflowStateId: resolvedWorkflowStateId }),
                   ...(resolvedAssigneeId !== undefined && { assigneeId: resolvedAssigneeId || null }),
                   ...(updateData.priority && { priority: updateData.priority }),
@@ -956,7 +956,7 @@ Always use the provided tools for actions.`
         inputSchema: z.object({
           projects: z.array(z.object({
             name: z.string().nullish().describe('The name of the project (REQUIRED)'),
-            description: z.string().optional(),
+            description: z.string().nullish(),
             key: z.string().nullish().describe('A 3-letter project identifier (REQUIRED)'),
             color: z.string().optional(),
             icon: z.string().optional(),
@@ -1010,7 +1010,7 @@ Always use the provided tools for actions.`
 
                 const project = await createProject(teamId, {
                   name: projectData.name!,
-                  description: projectData.description,
+                  description: projectData.description ?? undefined,
                   key: projectData.key!,
                   color: projectData.color || '#6366f1',
                   icon: projectData.icon,
