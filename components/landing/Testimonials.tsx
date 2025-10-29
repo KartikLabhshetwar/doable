@@ -11,6 +11,7 @@ export const Testimonials: React.FC<TestimonialsProps> = ({ className = '' }) =>
   // Array of relevant Twitter/X tweet IDs that you can customize
   // Replace these with actual tweet IDs about your product
   const tweetIds = [
+    '1983504849716085074',
     '1983433254024917384',
     '1983426984094118063',
     '1983433841722437683',
