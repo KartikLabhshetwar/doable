@@ -192,6 +192,7 @@ export const FeatureCardsBento: React.FC = () => {
                       loop={false}
                       playsInline
                       onEnded={() => handleVideoEnd(index)}
+                      aria-label={`${feature.title} - ${feature.description}`}
                     >
                       <source src={feature.videoSrc} type="video/mp4" />
                       Your browser does not support the video tag.

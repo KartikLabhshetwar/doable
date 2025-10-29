@@ -1,0 +1,260 @@
+# Doable - LLM Context
+
+## Project Overview
+
+Doable is a modern, AI-powered task management platform designed for teams who want to ship faster and work smarter. It combines the power of AI assistance with intuitive project management tools, featuring natural language task creation, team collaboration, and flexible workflows.
+
+**Repository**: https://github.com/KartikLabhshetwar/doable  
+**License**: Apache License 2.0  
+**Live URL**: https://doable-lyart.vercel.app
+
+## Tech Stack
+
+- **Framework**: Next.js 15.1.7 (App Router)
+- **Language**: TypeScript 5
+- **UI**: React 19.0.0
+- **Database**: PostgreSQL with Prisma ORM 6.18.0
+- **Authentication**: Better Auth 1.3.32 with Google OAuth
+- **AI**: Vercel AI SDK 5.0.81 with Groq (GPT-OSS 120B model)
+- **Styling**: Tailwind CSS 3.4.1 with custom design system
+- **UI Components**: Shadcn/ui and Radix UI primitives
+- **Email**: Resend 6.3.0 for team invitations
+- **Forms**: React Hook Form 7.65.0 with Zod 4.1.12 validation
+- **Drag & Drop**: Hello Pangea DnD 18.0.1
+- **Charts**: Recharts 2.15.1
+
+## Project Structure
+
+### Application Routes (Next.js App Router)
+
+```
+app/
+├── (landing-page)/          # Public landing page (SEO optimized)
+│   ├── layout.tsx          # Landing page layout with Instrument Serif font
+│   └── page.tsx            # Landing page with JSON-LD structured data
+├── api/                     # API routes
+│   ├── auth/[...all]/      # Better Auth handlers
+│   ├── invitations/        # Public invitation handling
+│   └── teams/              # Team management API
+│       ├── route.ts        # List/create teams
+│       ├── [teamId]/       # Team-specific routes
+│       │   ├── issues/     # Issue CRUD operations
+│       │   ├── projects/   # Project CRUD operations
+│       │   ├── chat/       # AI chatbot endpoint with streaming
+│       │   ├── invitations/# Team invitation system
+│       │   ├── members/    # Team member management
+│       │   ├── labels/     # Label management
+│       │   └── workflow-states/ # Workflow state management
+│       └── create/         # Team creation endpoint
+├── dashboard/              # Protected dashboard routes
+│   ├── page.tsx           # Team selector (redirects if authenticated)
+│   └── [teamId]/          # Team-scoped dashboard
+│       ├── layout.tsx     # Dashboard layout with sidebar navigation
+│       ├── (overview)/    # Overview page (redirects to issues)
+│       ├── issues/        # Issue management page
+│       ├── projects/      # Project management page
+│       ├── management/    # Team management page
+│       └── people/        # Team members page
+├── sign-in/               # Sign in page
+├── sign-up/               # Sign up page
+├── invite/[invitationId]/ # Public invitation acceptance page
+├── layout.tsx             # Root layout with metadata and providers
+├── sitemap.ts            # Dynamic sitemap generation
+└── robots.ts             # Robots.txt generation
+```
+
+### Component Structure
+
+```
+components/
+├── landing/              # Landing page components
+│   ├── LandingPage.tsx   # Main landing page container
+│   ├── HeroSection.tsx    # Hero section with CTA
+│   ├── DemoVideoSection.tsx # Demo video showcase
+│   ├── FeaturesSection.tsx  # Features overview
+│   ├── FeatureCardsBento.tsx # Interactive feature cards with videos
+│   ├── HowToUseSection.tsx   # Usage instructions
+│   ├── Testimonials.tsx     # Customer testimonials
+│   ├── CtaSection.tsx       # Call-to-action section
+│   ├── CustomNavbar.tsx     # Landing page navigation
+│   ├── Footer.tsx           # Landing page footer
+│   └── Logo.tsx             # Logo component
+├── issues/                # Issue management components
+│   ├── issue-board.tsx    # Kanban board view
+│   ├── issue-table.tsx    # Table view
+│   ├── issue-card.tsx     # Individual issue card
+│   └── issue-dialog.tsx   # Issue creation/edit dialog
+├── projects/             # Project components
+│   ├── project-table.tsx  # Project listing table
+│   ├── project-card.tsx   # Project card component
+│   └── project-dialog.tsx # Project creation/edit dialog
+├── ai/                    # AI chatbot components
+│   ├── ai-chatbot.tsx     # Main chatbot interface
+│   ├── chat-input.tsx     # Chat input component
+│   └── chat-message.tsx   # Individual message component
+├── shared/                # Shared components
+│   ├── team-selector.tsx  # Team selection dropdown
+│   ├── workspace-selector.tsx # Workspace switcher
+│   ├── label-badge.tsx    # Label display component
+│   ├── status-badge.tsx   # Status badge component
+│   ├── priority-icon.tsx  # Priority indicator
+│   └── command-palette.tsx # Global command palette
+└── ui/                    # Shadcn/ui components (base UI primitives)
+```
+
+### Library Structure
+
+```
+lib/
+├── api/                   # API client functions
+│   ├── issues.ts         # Issue API client
+│   ├── projects.ts       # Project API client
+│   ├── labels.ts         # Label API client
+│   └── chat.ts           # Chat API client
+├── auth-client.ts        # Better Auth client configuration
+├── auth-server.ts        # Better Auth server configuration
+├── auth-server-helpers.ts # Server-side auth helpers
+├── db.ts                 # Prisma client instance
+├── email.ts              # Resend email service wrapper
+├── utils.ts              # Utility functions (cn, etc.)
+├── prompts/              # AI prompts
+│   └── assistant-prompt.ts # Main AI assistant system prompt
+└── types/                # TypeScript type definitions
+    ├── chat.ts           # Chat-related types
+    └── index.ts          # Common types
+```
+
+## Database Schema (Prisma)
+
+**Main Entities:**
+- `Team` - Top-level workspace organization with optional Groq API key (BYOK support)
+- `Project` - Project containers within teams with key, color, icon, and status
+- `Issue` - Task items with priority, status, estimates, and assignees
+- `WorkflowState` - Custom workflow states (backlog, todo, in progress, done, etc.)
+- `Label` - Categorization tags for issues with custom colors
+- `TeamMember` - User-team relationships with roles (admin, member)
+- `Invitation` - Pending team invitations via email
+- `ChatConversation` - AI chatbot conversation history per team
+- `ChatMessage` - Individual messages in conversations
+
+**Key Features:**
+- All entities are team-scoped (except User which is managed by Better Auth)
+- Soft deletes via status fields
+- Timestamps (createdAt, updatedAt) on all entities
+- Cascade deletes for related entities
+
+## Authentication
+
+- **Provider**: Better Auth with Google OAuth
+- **Session Management**: Cookie-based with 7-day expiration
+- **Authentication Flow**: OAuth redirect → callback → session creation
+- **Protected Routes**: All `/dashboard/*` routes require authentication
+- **Middleware**: `middleware.ts` handles route protection and redirects
+
+## AI Chatbot Architecture
+
+**Model**: Groq GPT-OSS 120B via Vercel AI SDK
+
+**Capabilities**:
+- Create/update issues with natural language
+- Create/update projects
+- Invite team members via email
+- List and filter issues
+- Get issue details
+- Retrieve team statistics
+
+**Features**:
+- Streaming responses for real-time interaction
+- Function calling for structured actions
+- Automatic name-to-ID resolution (workflow states, assignees, projects, labels)
+- Multi-step tool execution
+- Conversation history persistence
+- Per-team API key support (BYOK)
+
+**Function Calling Tools**:
+1. `create_issue` - Create new issues
+2. `update_issue` - Update existing issues
+3. `create_project` - Create new projects
+4. `update_project` - Update existing projects
+5. `invite_team_member` - Send team invitations
+6. `get_team_stats` - Get team metrics
+7. `list_issues` - Query issues with filters
+8. `get_issue_details` - Get specific issue information
+
+## API Design Patterns
+
+**RESTful Routes:**
+- GET `/api/teams` - List all teams for authenticated user
+- POST `/api/teams/create` - Create new team
+- GET `/api/teams/[teamId]/issues` - List issues for team
+- POST `/api/teams/[teamId]/issues` - Create issue
+- PATCH `/api/teams/[teamId]/issues/[issueId]` - Update issue
+- DELETE `/api/teams/[teamId]/issues/[issueId]` - Delete issue
+
+**Streaming Endpoints:**
+- POST `/api/teams/[teamId]/chat` - AI chatbot with Server-Sent Events (SSE)
+
+**Authentication:**
+- All API routes check authentication via Better Auth
+- Team-scoped routes verify user is team member
+- Role-based access for admin-only actions
+
+## Environment Variables
+
+**Required:**
+- `BETTER_AUTH_SECRET` - Session encryption secret
+- `BETTER_AUTH_URL` - Base URL for auth callbacks
+- `DATABASE_URL` - PostgreSQL connection string
+- `GOOGLE_CLIENT_ID` - Google OAuth client ID
+- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
+- `NEXT_PUBLIC_APP_URL` - Public application URL
+
+**Optional:**
+- `GROQ_API_KEY` - Global Groq API key (can also be set per-team)
+- `RESEND_API_KEY` - Resend API key for email invitations
+- `RESEND_FROM_EMAIL` - Verified sender email address
+
+## Key Design Decisions
+
+1. **Team-Scoped Architecture**: All data is scoped to teams, enabling multi-tenancy
+2. **BYOK Support**: Teams can bring their own Groq API keys for isolated AI usage
+3. **Flexible Workflows**: Custom workflow states per team (not hardcoded)
+4. **AI-First**: Primary interface is natural language chat, traditional UI is secondary
+5. **Server Components**: Maximum use of Next.js Server Components for performance
+6. **Streaming AI**: Real-time streaming responses for better UX
+7. **SEO Optimized**: Landing page includes JSON-LD, sitemap, robots.txt, and metadata
+
+## Development Workflow
+
+**Scripts:**
+- `npm run dev` - Start development server
+- `npm run build` - Build for production (includes Prisma generate)
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run db:push` - Push schema changes to database
+- `npm run db:migrate` - Run Prisma migrations
+
+**Database:**
+- Uses Prisma migrations for schema versioning
+- `prisma/schema.prisma` defines the schema
+- Generate Prisma Client: `npx prisma generate`
+
+## Important Files
+
+- `app/layout.tsx` - Root layout with SEO metadata and providers
+- `app/(landing-page)/page.tsx` - Landing page with JSON-LD structured data
+- `app/dashboard/[teamId]/layout.tsx` - Dashboard layout with sidebar
+- `lib/prompts/assistant-prompt.ts` - AI system prompt configuration
+- `middleware.ts` - Route protection and authentication
+- `prisma/schema.prisma` - Database schema definition
+
+## SEO Implementation
+
+- Dynamic metadata per page using Next.js Metadata API
+- JSON-LD structured data (SoftwareApplication, Organization schemas)
+- Automatic sitemap generation (`app/sitemap.ts`)
+- Robots.txt generation (`app/robots.ts`)
+- Open Graph and Twitter Card metadata
+- Semantic HTML with proper heading hierarchy
+- ARIA labels for accessibility
+

@@ -64,7 +64,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-      <script defer src="https://cloud.umami.is/script.js" data-website-id="158d23fd-3fec-46cb-a533-9f1136de3fe7"></script>
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+        <meta name="theme-color" content="#000000" />
+        <script defer src="https://cloud.umami.is/script.js" data-website-id="158d23fd-3fec-46cb-a533-9f1136de3fe7"></script>
       </head>
       <body className={inter.className}>
         <ErrorBoundaryWrapper>

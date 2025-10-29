@@ -37,6 +37,7 @@ export const DemoVideoSection: React.FC<DemoVideoSectionProps> = ({
             loop
             playsInline
             poster={poster}
+            aria-label={`${title} - ${description}`}
           >
             <source src={videoSrc} type="video/mp4" />
             Your browser does not support the video tag.
