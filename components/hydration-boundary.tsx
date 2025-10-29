@@ -1,30 +1,60 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export function HydrationBoundary({ children }: { children: React.ReactNode }) {
+  const cleanedRef = useRef(false);
+
   useEffect(() => {
+    // Prevent double execution
+    if (cleanedRef.current) return;
+    cleanedRef.current = true;
+
     // Remove Grammarly and other extension attributes that cause hydration mismatches
-    const removeExtensionAttributes = () => {
+    const removeExtensionAttributes = (target: Element) => {
       // Remove Grammarly attributes
-      document.documentElement.removeAttribute('data-gr-ext-installed');
-      document.body.removeAttribute('data-new-gr-c-s-check-loaded');
-      
-      // Remove any other common extension attributes
-      const elements = document.querySelectorAll('[data-new-gr-c-s-check-loaded], [data-gr-ext-installed]');
-      elements.forEach(el => {
-        el.removeAttribute('data-new-gr-c-s-check-loaded');
-        el.removeAttribute('data-gr-ext-installed');
-      });
+      target.removeAttribute('data-gr-ext-installed');
+      target.removeAttribute('data-new-gr-c-s-check-loaded');
     };
 
-    // Run immediately
-    removeExtensionAttributes();
+    // Initial cleanup
+    removeExtensionAttributes(document.documentElement);
+    removeExtensionAttributes(document.body);
 
-    // Also run after a short delay to catch any late-loading extensions
-    const timeoutId = setTimeout(removeExtensionAttributes, 100);
+    // Use MutationObserver to catch extensions that inject attributes late
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes') {
+          const target = mutation.target as Element;
+          const attributeName = mutation.attributeName;
+          
+          // Only process Grammarly-related attributes
+          if (attributeName === 'data-gr-ext-installed' || attributeName === 'data-new-gr-c-s-check-loaded') {
+            removeExtensionAttributes(target);
+          }
+        }
 
-    return () => clearTimeout(timeoutId);
+        // Also check added nodes
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const element = node as Element;
+            removeExtensionAttributes(element);
+          }
+        });
+      });
+    });
+
+    // Observe document changes
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-gr-ext-installed', 'data-new-gr-c-s-check-loaded'],
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      observer.disconnect();
+    };
   }, []);
 
   return <>{children}</>;
