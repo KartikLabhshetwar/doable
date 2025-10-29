@@ -87,27 +87,35 @@ export async function POST(
       ensureTeamExists(teamId)
     ])
 
-    // Verify user is a team member
-    await verifyTeamMembership(teamId, userId)
-
-    // Get creator name
+    // Get creator name early
     const creatorName = user.name || user.email || 'Unknown'
 
-    // Look up assignee name from TeamMember if assigneeId is provided
+    // Look up assignee name in parallel with team membership verification
+    const needsAssigneeLookup = body.assigneeId && body.assigneeId !== 'unassigned' && body.assigneeId !== userId
+    
+    // Parallelize: verify membership and lookup assignee simultaneously
+    const [, teamMember] = await Promise.all([
+      verifyTeamMembership(teamId, userId),
+      needsAssigneeLookup
+        ? db.teamMember.findFirst({
+            where: {
+              teamId,
+              userId: body.assigneeId
+            },
+            select: { userName: true }
+          })
+        : Promise.resolve(null)
+    ])
+
+    // Determine assignee name efficiently
     let assigneeName: string | undefined = undefined
     if (body.assigneeId && body.assigneeId !== 'unassigned') {
-      const teamMember = await db.teamMember.findFirst({
-        where: {
-          teamId,
-          userId: body.assigneeId
-        }
-      })
-      
-      if (teamMember) {
-        assigneeName = teamMember.userName
-      } else if (body.assigneeId === userId) {
-        // Fallback to current user's name if not in team members
+      if (body.assigneeId === userId) {
+        // Use creator name if assigning to self (no DB lookup needed)
         assigneeName = creatorName
+      } else {
+        // Use the team member lookup result
+        assigneeName = teamMember?.userName
       }
     }
 

@@ -160,21 +160,21 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
   // Extract labelIds and exclude from main data
   const { labelIds, projectId, ...issueData } = data
 
-  // Verify project if provided
-  const project = projectId ? await db.project.findFirst({ where: { id: projectId, teamId } }) : null
-
-  // Get next issue number - use project-specific numbering if project exists, otherwise team-based
-  const lastIssue = project 
-    ? await db.issue.findFirst({
-        where: { teamId, projectId },
-        orderBy: { number: 'desc' },
-        select: { number: true },
-      })
-    : await db.issue.findFirst({
-        where: { teamId, projectId: null },
-        orderBy: { number: 'desc' },
-        select: { number: true },
-      })
+  // Parallelize: verify project and get last issue number concurrently
+  const [project, lastIssue] = await Promise.all([
+    projectId ? db.project.findFirst({ where: { id: projectId, teamId }, select: { id: true } }) : Promise.resolve(null),
+    projectId
+      ? db.issue.findFirst({
+          where: { teamId, projectId },
+          orderBy: { number: 'desc' },
+          select: { number: true },
+        })
+      : db.issue.findFirst({
+          where: { teamId, projectId: null },
+          orderBy: { number: 'desc' },
+          select: { number: true },
+        }),
+  ])
 
   const nextNumber = (lastIssue?.number || 0) + 1
 
@@ -191,14 +191,11 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
     creatorId,
     creator: creatorName,
     number: nextNumber,
-  }
-
-  // Only set projectId if it exists and belongs to this team (verified by query)
-  if (project) {
-    issueDataToCreate.projectId = projectId
+    ...(project && projectId ? { projectId } : {}),
   }
 
   // Create the issue with a select that includes all necessary relations
+  // Exclude comments to reduce payload size and improve performance
   const selectConfig = {
     id: true,
     title: true,
@@ -231,29 +228,28 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
         label: true,
       },
     },
-    comments: true,
   }
 
-  // If labels are provided, create them in the same transaction or directly after
+  // Use transaction to create issue and labels atomically, avoiding refetch
   if (labelIds?.length) {
-    // Create issue first
-    const issue = await db.issue.create({
-      data: issueDataToCreate,
-      select: selectConfig,
-    })
+    return await db.$transaction(async (tx) => {
+      const issue = await tx.issue.create({
+        data: issueDataToCreate,
+        select: selectConfig,
+      })
 
-    // Then create labels in parallel
-    await db.issueLabel.createMany({
-      data: labelIds.map((labelId) => ({
-        issueId: issue.id,
-        labelId,
-      })),
-    })
+      await tx.issueLabel.createMany({
+        data: labelIds.map((labelId) => ({
+          issueId: issue.id,
+          labelId,
+        })),
+      })
 
-    // Refetch with labels
-    return await db.issue.findUnique({
-      where: { id: issue.id },
-      select: selectConfig,
+      // Return issue with labels loaded
+      return await tx.issue.findUnique({
+        where: { id: issue.id },
+        select: selectConfig,
+      })
     })
   }
 
