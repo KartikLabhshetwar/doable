@@ -1,3 +1,4 @@
+"use client";
 import React from 'react';
 import { CustomNavbar } from './CustomNavbar';
 import { HeroSection } from './HeroSection';
