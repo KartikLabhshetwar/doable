@@ -32,14 +32,14 @@ export const Testimonials: React.FC<TestimonialsProps> = ({ className = '' }) =>
   ];
 
   return (
-    <div className={`w-full py-20 relative overflow-hidden ${className}`}>
-      <div className="max-w-7xl mx-auto px-4">
+    <div className={`w-full py-12 md:py-20 relative overflow-hidden ${className}`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
         {/* Section Header */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-light tracking-tight bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent mb-4">
+        <div className="text-center mb-8 md:mb-12">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-tight bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent mb-3 md:mb-4">
             What People Are Saying
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto px-2">
             See what developers and teams are saying about Doable
           </p>
         </div>
@@ -47,14 +47,14 @@ export const Testimonials: React.FC<TestimonialsProps> = ({ className = '' }) =>
         {/* Marquee with Tweets */}
         <div className="relative">
           {/* Left gradient fade */}
-          <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background via-background to-transparent z-10 pointer-events-none" />
+          <div className="absolute left-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-r from-background via-background to-transparent z-10 pointer-events-none" />
           
           {/* Right gradient fade */}
-          <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background via-background to-transparent z-10 pointer-events-none" />
+          <div className="absolute right-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-l from-background via-background to-transparent z-10 pointer-events-none" />
           
           <Marquee pauseOnHover className="[--duration:200s]">
             {tweetIds.map((tweetId, index) => (
-              <div key={index} className="mx-3 w-[350px] sm:w-[400px] min-w-[350px] sm:min-w-[400px]">
+              <div key={index} className="mx-2 sm:mx-3 w-[280px] sm:w-[350px] md:w-[400px] min-w-[280px] sm:min-w-[350px] md:min-w-[400px]">
                 <Tweet id={tweetId} />
               </div>
             ))}
@@ -62,16 +62,16 @@ export const Testimonials: React.FC<TestimonialsProps> = ({ className = '' }) =>
         </div>
 
         {/* Reverse Marquee for variety */}
-        <div className="relative mt-8">
+        <div className="relative mt-6 md:mt-8">
           {/* Left gradient fade */}
-          <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background via-background to-transparent z-10 pointer-events-none" />
+          <div className="absolute left-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-r from-background via-background to-transparent z-10 pointer-events-none" />
           
           {/* Right gradient fade */}
-          <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background via-background to-transparent z-10 pointer-events-none" />
+          <div className="absolute right-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-l from-background via-background to-transparent z-10 pointer-events-none" />
           
           <Marquee reverse pauseOnHover className="[--duration:200s]">
             {tweetIds.slice().reverse().map((tweetId, index) => (
-              <div key={`reverse-${index}`} className="mx-3 w-[350px] sm:w-[400px] min-w-[350px] sm:min-w-[400px]">
+              <div key={`reverse-${index}`} className="mx-2 sm:mx-3 w-[280px] sm:w-[350px] md:w-[400px] min-w-[280px] sm:min-w-[350px] md:min-w-[400px]">
                 <Tweet id={tweetId} />
               </div>
             ))}

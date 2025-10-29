@@ -36,7 +36,7 @@ export const CtaSection: React.FC<CtaSectionProps> = ({ className = '' }) => {
       
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
         {/* Big Headline */}
-        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-center tracking-tight mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-medium text-center tracking-tight mb-6 sm:mb-8">
           <TextAnimate
             by="word"
             animation="blurInUp"
@@ -49,7 +49,7 @@ export const CtaSection: React.FC<CtaSectionProps> = ({ className = '' }) => {
         </h1>
         
         {/* Subtitle */}
-        <h2 className="text-lg sm:text-xl md:text-2xl font-medium text-center text-muted-foreground mb-8 sm:mb-12 max-w-3xl mx-auto px-4 leading-relaxed">
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-medium text-center text-muted-foreground mb-8 sm:mb-12 max-w-3xl mx-auto px-4 leading-relaxed">
           <TextAnimate
             by="word"
             animation="fadeIn"
