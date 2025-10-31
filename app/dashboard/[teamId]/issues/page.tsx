@@ -317,8 +317,10 @@ export default function IssuesPage() {
     startTransition(async () => {
       const result = await deleteIssueAction(teamId, issueId)
       if (result.success) {
-        setIssues(prev => prev.filter(i => i.id !== issueId))
-        cache.delete(cacheKeys.issues)
+        // Clear all cache to ensure fresh data
+        clearAllCachedData()
+        // Refetch issues to ensure we have the complete data structure
+        await fetchIssues(true, false)
       } else {
         console.error('Error deleting issue:', result.error)
       }
@@ -332,8 +334,10 @@ export default function IssuesPage() {
       startTransition(async () => {
         const result = await updateIssueAction(teamId, currentIssue.id, data)
         if (result.success && result.issue) {
-          setIssues(prev => prev.map(i => i.id === currentIssue.id ? result.issue : i))
-          cache.delete(cacheKeys.issues)
+          // Clear all cache to ensure fresh data
+          clearAllCachedData()
+          // Refetch issues to ensure we have the complete data structure
+          await fetchIssues(true, false)
           resolve()
         } else {
           const error = new Error(result.error || 'Failed to update issue')
@@ -347,15 +351,37 @@ export default function IssuesPage() {
   const handleCreateIssue = async (data: CreateIssueData) => {
     return new Promise<void>((resolve, reject) => {
       startTransition(async () => {
-        const result = await createIssueAction(teamId, data)
-        if (result.success && result.issue) {
-          setIssues(prev => [result.issue, ...prev])
-          cache.delete(cacheKeys.issues)
-          resolve()
-        } else {
-          const error = new Error(result.error || 'Failed to create issue')
-          console.error('Error creating issue:', error)
-          reject(error)
+        try {
+          const result = await createIssueAction(teamId, data)
+          if (result.success && result.issue) {
+            // Optimistically add the issue to state for instant UI update
+            const newIssue = result.issue as any
+            setIssues(prev => {
+              // Check if issue already exists (prevent duplicates)
+              const exists = prev.some(i => i.id === newIssue.id)
+              if (exists) return prev
+              // Add to beginning of list
+              return [newIssue, ...prev]
+            })
+            
+            // Invalidate cache for issues (but don't refetch immediately)
+            const issuesCacheKey = `issues-${teamId}-${JSON.stringify(filters)}-${JSON.stringify(sort)}`
+            cache.delete(issuesCacheKey)
+            
+            // Silently refresh in background without blocking UI
+            fetchIssues(true, true).catch(err => {
+              console.error('Error refreshing issues in background:', err)
+            })
+            
+            resolve()
+          } else {
+            const error = new Error(result.error || 'Failed to create issue')
+            console.error('Error creating issue:', error)
+            reject(error)
+          }
+        } catch (error) {
+          console.error('Error in handleCreateIssue:', error)
+          reject(error instanceof Error ? error : new Error('Failed to create issue'))
         }
       })
     })

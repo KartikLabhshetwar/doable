@@ -179,7 +179,7 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
   }
 
   // Create the issue with a select that includes all necessary relations
-  // Exclude comments to reduce payload size and improve performance
+  // Exclude comments and reduce team data to improve performance
   const selectConfig = {
     id: true,
     title: true,
@@ -206,7 +206,12 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
     assignee: true,
     creatorId: true,
     creator: true,
-    team: true,
+    team: {
+      select: {
+        id: true,
+        key: true,
+      },
+    },
     labels: {
       include: {
         label: true,
@@ -217,48 +222,41 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
   // Use transaction to generate number atomically and create issue, preventing race conditions
   if (labelIds?.length) {
     return await db.$transaction(async (tx) => {
-      // Get last issue number for the entire team (not per project) within transaction
-      const lastIssue = await tx.issue.findFirst({
+      // Optimized: Use aggregate to get max number (faster than findFirst with orderBy)
+      const maxResult = await tx.issue.aggregate({
         where: { teamId },
-        orderBy: { number: 'desc' },
-        select: { number: true },
+        _max: { number: true },
       })
       
-      const nextNumber = (lastIssue?.number || 0) + 1
+      const nextNumber = (maxResult._max.number || 0) + 1
 
+      // Create issue and labels in one go
       const issue = await tx.issue.create({
         data: {
           ...issueDataToCreate,
           number: nextNumber,
+          labels: {
+            create: labelIds.map((labelId) => ({
+              labelId,
+            })),
+          },
         },
         select: selectConfig,
       })
 
-      await tx.issueLabel.createMany({
-        data: labelIds.map((labelId) => ({
-          issueId: issue.id,
-          labelId,
-        })),
-      })
-
-      // Return issue with labels loaded
-      return await tx.issue.findUnique({
-        where: { id: issue.id },
-        select: selectConfig,
-      })
+      return issue
     })
   }
 
   // Create issue without labels, but still in transaction to prevent race conditions
   return await db.$transaction(async (tx) => {
-    // Get last issue number for the entire team (not per project) within transaction
-    const lastIssue = await tx.issue.findFirst({
+    // Optimized: Use aggregate to get max number (faster than findFirst with orderBy)
+    const maxResult = await tx.issue.aggregate({
       where: { teamId },
-      orderBy: { number: 'desc' },
-      select: { number: true },
+      _max: { number: true },
     })
     
-    const nextNumber = (lastIssue?.number || 0) + 1
+    const nextNumber = (maxResult._max.number || 0) + 1
 
     return await tx.issue.create({
       data: {

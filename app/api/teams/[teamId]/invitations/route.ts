@@ -69,23 +69,6 @@ export async function POST(
       )
     }
 
-    // Check if invitation already exists
-    const existingInvitation = await db.invitation.findUnique({
-      where: {
-        teamId_email: {
-          teamId,
-          email,
-        },
-      },
-    })
-
-    if (existingInvitation && existingInvitation.status === 'pending') {
-      return NextResponse.json(
-        { error: 'Invitation already sent to this email' },
-        { status: 400 }
-      )
-    }
-
     // Check if user is already a member
     const existingMember = await db.teamMember.findFirst({
       where: {
@@ -101,12 +84,46 @@ export async function POST(
       )
     }
 
-    // Create invitation (expires in 7 days)
+    // Check if invitation already exists
+    const existingInvitation = await db.invitation.findUnique({
+      where: {
+        teamId_email: {
+          teamId,
+          email,
+        },
+      },
+    })
+
+    // If pending invitation exists, return error
+    if (existingInvitation && existingInvitation.status === 'pending') {
+      // Check if it's expired
+      if (existingInvitation.expiresAt > new Date()) {
+        return NextResponse.json(
+          { error: 'Invitation already sent to this email' },
+          { status: 400 }
+        )
+      }
+      // If expired, we'll update it below
+    }
+
+    // Create or update invitation (expires in 7 days)
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7)
 
-    const invitation = await db.invitation.create({
-      data: {
+    const invitation = await db.invitation.upsert({
+      where: {
+        teamId_email: {
+          teamId,
+          email,
+        },
+      },
+      update: {
+        role: role || 'developer',
+        invitedBy: userId,
+        status: 'pending',
+        expiresAt,
+      },
+      create: {
         teamId,
         email,
         role: role || 'developer',
