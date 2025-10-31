@@ -14,14 +14,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { UserAvatar } from '@/components/shared/user-avatar'
-import { Mail, Trash2 } from 'lucide-react'
+import { Mail, Trash2, ChevronDown } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import IconUsers from '@/components/ui/IconUsers'
@@ -277,12 +276,15 @@ export default function PeoplePage() {
       </div>
 
       {/* Invite Dialog */}
-      {inviteDialogOpen && (
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle>Invite Team Member</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Invite Team Member</DialogTitle>
+            <DialogDescription>
+              Send an invitation to a team member by email address.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Email Address</label>
               <Input
@@ -291,49 +293,67 @@ export default function PeoplePage() {
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 className="h-11"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isSubmitting && inviteEmail) {
+                    handleInvite()
+                  }
+                }}
               />
             </div>
             <div>
               <label className="text-sm font-medium mb-2 block">Role</label>
-              <Select value={inviteRole} onValueChange={setInviteRole}>
-                <SelectTrigger className="h-11">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="developer">Developer</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="viewer">Viewer</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setInviteDialogOpen(false)
-                  setInviteEmail('')
-                  setInviteRole('developer')
-                }}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleInvite}
-                disabled={isSubmitting}
-                className="flex-1"
-              >
-                {isSubmitting ? 'Sending...' : 'Send Invitation'}
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between h-11"
+                  >
+                    {inviteRole === 'developer' ? 'Developer' :
+                     inviteRole === 'admin' ? 'Admin' :
+                     inviteRole === 'viewer' ? 'Viewer' : 'Developer'}
+                    <ChevronDown className="h-4 w-4 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[var(--radix-dropdown-menu-trigger-width)]">
+                  <DropdownMenuItem onClick={() => setInviteRole('developer')}>
+                    Developer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setInviteRole('admin')}>
+                    Admin
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setInviteRole('viewer')}>
+                    Viewer
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             {isSubmitting && (
-              <div className="flex items-center justify-center pt-2">
+              <div className="flex items-center justify-center py-2">
                 <Spinner size="sm" />
+                <span className="ml-2 text-sm text-muted-foreground">Sending invitation...</span>
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setInviteDialogOpen(false)
+                setInviteEmail('')
+                setInviteRole('developer')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleInvite}
+              disabled={isSubmitting || !inviteEmail}
+            >
+              {isSubmitting ? 'Sending...' : 'Send Invitation'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Members List */}
       <Card className="border-border/50">
