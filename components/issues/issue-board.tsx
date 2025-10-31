@@ -116,12 +116,23 @@ export function IssueBoard({
     setIsDragging(true)
   }
 
-  const boardGap = sidebarCollapsed ? 'gap-6' : 'gap-5'
-  const columnWidth = sidebarCollapsed ? 'w-[320px]' : 'w-[280px]'
+  const boardGap = sidebarCollapsed ? 'gap-8' : 'gap-6'
+  // Always use flex-1 so columns expand equally to fill available space
+  // Set minimum width based on sidebar state for better UX
+  const columnWidth = sidebarCollapsed 
+    ? 'min-w-[300px] flex-1' 
+    : 'min-w-[280px] flex-1'
   
   return (
     <DragDropContext onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
-      <div className={cn('flex', boardGap, 'overflow-x-auto pb-4 h-full bg-muted/30', className)}>
+      <div className={cn(
+        'flex', 
+        boardGap, 
+        'pb-4 h-full bg-muted/30 px-4 py-4',
+        // Fill full width - columns will expand equally with flex-1
+        'w-full min-w-0',
+        className
+      )}>
         {workflowStates.map((state) => {
           const stateIssues = getIssuesByStatus(state.id)
           const getStatusIcon = () => {
@@ -133,7 +144,7 @@ export function IssueBoard({
           }
           
           return (
-            <div key={state.id} className={cn('flex-shrink-0 flex flex-col', columnWidth)}>
+            <div key={state.id} className={cn('flex flex-col', columnWidth)}>
               {/* Column Header */}
               <div className="flex items-center justify-between mb-3 px-1">
                 <div className="flex items-center gap-2.5">

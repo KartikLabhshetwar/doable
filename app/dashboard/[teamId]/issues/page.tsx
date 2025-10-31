@@ -645,7 +645,7 @@ export default function IssuesPage() {
                 )}
 
                 {currentView === 'board' && (
-                  <div className="w-full h-[calc(100vh-280px)] overflow-hidden">
+                  <div className="h-[calc(100vh-280px)] overflow-hidden relative -mx-6 px-6">
                     <IssueBoard
                       issues={filteredIssues as any}
                       workflowStates={workflowStates}
