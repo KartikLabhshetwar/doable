@@ -99,6 +99,7 @@ export function ProjectList({
             {/* Section Header */}
             <div className="flex items-center gap-2 px-3 py-2 hover:bg-muted/30 transition-colors group">
               <button
+                type="button"
                 onClick={() => toggleSection(status)}
                 className="flex items-center gap-2 flex-1 min-w-0 text-left"
               >
@@ -125,13 +126,16 @@ export function ProjectList({
               
               {onCreateProject && (
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 z-10 relative"
                   onClick={(e) => {
+                    e.preventDefault()
                     e.stopPropagation()
                     onCreateProject(status)
                   }}
+                  aria-label={`Create project in ${statusLabels[status as keyof typeof statusLabels]}`}
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
