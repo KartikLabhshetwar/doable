@@ -35,7 +35,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   className = '',
 }) => {
   return (
-    <div className={`min-h-[calc(100vh-10rem)] w-full max-w-7xl mx-auto flex flex-col items-center justify-center px-4 pt-20 pb-10 md:pt-32 md:pb-20 relative ${className}`}>
+    <div className={`HeroSection min-h-[calc(100vh-10rem)] w-full max-w-7xl mx-auto flex flex-col items-center justify-center px-4 pt-20 pb-10 md:pt-32 md:pb-20 relative ${className}`} data-hero-section>
       {/* Dot Pattern Background */}
       <div className="absolute inset-0 overflow-hidden">
         <DotPattern

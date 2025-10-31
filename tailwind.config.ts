@@ -31,7 +31,9 @@ const config = {
   				'Arial',
   				'Noto Sans',
   				'sans-serif'
-  			]
+  			],
+  			inter: ['var(--font-inter)', 'Inter', 'sans-serif'],
+  			'instrument-serif': ['var(--font-instrument-serif)', 'Instrument Serif', 'serif']
   		},
   		colors: {
   			border: 'hsl(var(--border))',
@@ -113,7 +115,7 @@ const config = {
   					height: '0'
   				}
   			},
-  			'ripple': {
+  			ripple: {
   				'0%, 100%': {
   					transform: 'translate(-50%, -50%) scale(1)'
   				},
@@ -132,7 +134,7 @@ const config = {
   					'background-position': '0% 0%'
   				}
   			},
-  			'marquee': {
+  			marquee: {
   				from: {
   					transform: 'translateX(0%)'
   				},
@@ -168,14 +170,14 @@ const config = {
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
-  			'ripple': 'ripple 2s ease infinite',
+  			ripple: 'ripple 2s ease infinite',
   			'shiny-text': 'shiny-text 8s ease-in-out infinite',
-  			'marquee': 'marquee var(--duration) linear infinite',
+  			marquee: 'marquee var(--duration) linear infinite',
   			'marquee-vertical': 'marquee-vertical var(--duration) linear infinite',
   			'scroll-right': 'scroll-right var(--duration, 20s) linear infinite',
   			'scroll-left': 'scroll-left var(--duration, 20s) linear infinite',
-  			'scrollRight': 'scroll-right var(--duration, 20s) linear infinite',
-  			'scrollLeft': 'scroll-left var(--duration, 20s) linear infinite'
+  			scrollRight: 'scroll-right var(--duration, 20s) linear infinite',
+  			scrollLeft: 'scroll-left var(--duration, 20s) linear infinite'
   		}
   	}
   },

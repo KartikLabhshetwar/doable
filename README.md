@@ -28,6 +28,7 @@ Doable is a modern, AI-powered task management platform designed for teams who w
 
 - **AI Assistant** - Natural language task management powered by Groq's GPT-OSS 120B model. Create, update, and manage tasks through conversation
 - **Project & Issue Management** - Organize work into projects with custom workflows, priorities, and estimates
+- **Project Members** - Assign team members to specific projects for better organization and visibility
 - **Team Collaboration** - Invite team members, assign tasks, and collaborate effectively
 - **Modern Design** - Clean, intuitive interface inspired by Swiss design principles
 - **Custom Workflows** - Define your own workflow states (Backlog, Todo, In Progress, Done, etc.)
@@ -46,6 +47,7 @@ The application uses PostgreSQL with Prisma ORM. The main entities are:
 
 - **Team** - Top-level workspace organization
 - **Project** - Project containers within teams
+- **ProjectMember** - User-project relationships for project-specific team assignments
 - **Issue** - Task items with priority, status, and estimates
 - **WorkflowState** - Custom workflow states (backlog, todo, in progress, etc.)
 - **Label** - Categorization tags for issues
@@ -60,6 +62,7 @@ The application uses PostgreSQL with Prisma ORM. The main entities are:
 - `/api/teams/*` - Team management and CRUD operations
 - `/api/teams/[teamId]/issues/*` - Issue management
 - `/api/teams/[teamId]/projects/*` - Project management
+- `/api/teams/[teamId]/projects/[projectId]/members/*` - Project member management
 - `/api/teams/[teamId]/chat` - AI chatbot endpoint with streaming
 - `/api/teams/[teamId]/invitations/*` - Team invitation system
 - `/api/invitations/[invitationId]` - Public invitation details
@@ -70,6 +73,7 @@ The chatbot is powered by Vercel AI SDK with Groq using the GPT-OSS (Open Source
 
 - **Creating and updating issues** - Natural language task creation with automatic field resolution
 - **Managing projects** - Create, update, and manage project containers
+- **Managing project members** - Add or remove team members from projects via natural language
 - **Inviting team members** - Send team invitations via email
 - **Retrieving team statistics** - Get overview of team activity and metrics
 - **Listing and filtering issues** - Query and display tasks with various filters
@@ -203,6 +207,8 @@ Chat history is persisted in the database for each conversation, allowing users 
      - "Create a new issue for fixing the login bug"
      - "Show me all high-priority issues"
      - "Update the checkout page issue to In Progress and assign it to John"
+     - "Add Sarah to the Web Project"
+     - "List members of the API project"
 
 ### Google OAuth Setup
 

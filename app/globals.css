@@ -66,6 +66,59 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Landing Page Font Overrides */
+  .font-inter {
+    font-family: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  }
+
+  /* Default: Inter for all body text in landing page */
+  .font-inter p,
+  .font-inter span,
+  .font-inter div,
+  .font-inter button,
+  .font-inter a,
+  .font-inter .text-muted-foreground {
+    font-family: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  }
+
+  /* Instrument Serif for all headings and subheadings in landing page */
+  .font-inter h1,
+  .font-inter h2,
+  .font-inter h3,
+  .font-inter h4,
+  .font-inter h5,
+  .font-inter h6 {
+    font-family: var(--font-instrument-serif), 'Instrument Serif', serif;
+  }
+
+  /* Instrument Serif for ENTIRE navigation bar - override everything */
+  .font-inter [class*="Navbar"],
+  .font-inter [class*="Navbar"] *,
+  .font-inter [class*="Nav"],
+  .font-inter [class*="Nav"] *,
+  .font-inter nav,
+  .font-inter nav * {
+    font-family: var(--font-instrument-serif), 'Instrument Serif', serif !important;
+  }
+
+  /* Instrument Serif for ENTIRE hero section - override everything */
+  .font-inter [data-hero-section],
+  .font-inter [data-hero-section] *,
+  .font-inter [class*="HeroSection"],
+  .font-inter [class*="HeroSection"] *,
+  .font-inter [id*="hero"],
+  .font-inter [id*="hero"] * {
+    font-family: var(--font-instrument-serif), 'Instrument Serif', serif !important;
+  }
+
+  /* Instrument Serif for ENTIRE CTA section - override everything */
+  .font-inter [data-cta-section],
+  .font-inter [data-cta-section] *,
+  .font-inter [class*="CtaSection"],
+  .font-inter [class*="CtaSection"] * {
+    font-family: var(--font-instrument-serif), 'Instrument Serif', serif !important;
+  }
+
   /* Swiss Design Typography Hierarchy */
   h1 {
     font-size: 2.25rem;

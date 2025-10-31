@@ -19,7 +19,7 @@ interface CtaSectionProps {
 
 export const CtaSection: React.FC<CtaSectionProps> = ({ className = '' }) => {
   return (
-    <div className={`py-16 md:py-24 lg:py-32 overflow-hidden ${className}`} style={{ position: 'relative' }}>
+    <div className={`CtaSection py-16 md:py-24 lg:py-32 overflow-hidden ${className}`} style={{ position: 'relative' }} data-cta-section>
       {/* Dot Pattern Background - Square Container */}
       <div className="absolute inset-0 flex items-center justify-center z-0">
       </div>

@@ -6,6 +6,7 @@ import { DemoVideoSection } from './DemoVideoSection';
 import { FeaturesSection } from './FeaturesSection';
 import { HowToUseSection } from './HowToUseSection';
 import { Testimonials } from './Testimonials';
+import { FAQSection } from './FAQSection';
 import { CtaSection } from './CtaSection';
 import { Footer } from './Footer';
 import { HorizontalLine } from './HorizontalLine';
@@ -60,6 +61,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ className = '' }) => {
       
       {/* Testimonials Section */}
       <Testimonials />
+      
+      <HorizontalLine />
+      
+      {/* FAQ Section */}
+      <FAQSection />
       
       <HorizontalLine />
       
