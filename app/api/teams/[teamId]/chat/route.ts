@@ -1551,7 +1551,7 @@ Always use the provided tools for actions.`
 
     // Stream the response
     const result = streamText({
-      model: groq('openai/gpt-oss-20b'),
+      model: groq('openai/gpt-oss-120b'),
       system: systemPrompt,
       messages: modelMessages,
       tools,

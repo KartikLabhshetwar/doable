@@ -13,7 +13,6 @@ import { ViewSwitcher } from '@/components/shared/view-switcher'
 import { FilterBar } from '@/components/filters/filter-bar'
 import { CommandPalette } from '@/components/shared/command-palette'
 import { CreateIssueData, IssueFilters, IssueSort, ViewType, IssueWithRelations } from '@/lib/types'
-import { useCommandPalette, useCreateShortcut } from '@/lib/hooks/use-keyboard-shortcuts'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { createIssueAction, updateIssueAction, deleteIssueAction } from '@/lib/actions/issues'
 import { useTransition } from 'react'
@@ -261,9 +260,6 @@ export default function IssuesPage() {
     issues: `issues-${teamId}-${JSON.stringify(filters)}-${JSON.stringify(sort)}`
   }), [teamId, filters, sort])
 
-  // Keyboard shortcuts
-  useCommandPalette(() => setCommandPaletteOpen(true))
-  useCreateShortcut(() => setCreateDialogOpen(true))
 
   useEffect(() => {
     fetchInitialData()
