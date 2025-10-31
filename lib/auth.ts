@@ -45,7 +45,7 @@ export const auth = betterAuth({
     nextCookies(), // Must be last plugin
   ],
 })
-
+ 
 export type Session = typeof auth.$Infer.Session
 
 // Session helpers for server-side
