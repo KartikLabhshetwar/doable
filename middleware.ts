@@ -3,29 +3,47 @@ import { getSessionCookie } from "better-auth/cookies";
 
 export async function middleware(request: NextRequest) {
   try {
-    const sessionCookie = getSessionCookie(request);
     const { pathname } = request.nextUrl;
-
-    // Redirect authenticated users away from auth pages
-    // BUT skip this redirect if there's a redirect query param (for invitation flow)
-    if (sessionCookie && ["/sign-in", "/sign-up"].includes(pathname)) {
-      const redirectParam = request.nextUrl.searchParams.get("redirect");
-      if (redirectParam) {
-        // Allow access to sign-in page if there's a redirect param
-        return NextResponse.next();
-      }
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+    
+    // Always allow access to sign-up and sign-in pages - let them handle their own logic
+    if (["/sign-in", "/sign-up"].includes(pathname)) {
+      return NextResponse.next();
     }
 
-    // Redirect unauthenticated users from protected routes to sign-in
-    if (!sessionCookie && pathname.startsWith("/dashboard")) {
-      return NextResponse.redirect(new URL("/sign-in", request.url));
+    // Check for session cookie - Better Auth uses "better-auth.session_token" by default
+    let hasSession = false;
+    try {
+      // Try the Better Auth helper first
+      const sessionCookie = getSessionCookie(request);
+      hasSession = !!sessionCookie;
+    } catch (error) {
+      // Fallback: check for Better Auth cookie directly
+      const cookies = request.cookies;
+      // Check common Better Auth cookie names
+      hasSession = cookies.has("better-auth.session_token") || 
+                   cookies.has("better-auth.session");
+    }
+
+    // For dashboard routes: redirect unauthenticated users to sign-up
+    if (pathname.startsWith("/dashboard")) {
+      if (!hasSession) {
+        const signUpUrl = new URL("/sign-up", request.url);
+        // Preserve the original path as a redirect parameter if needed
+        if (pathname !== "/dashboard") {
+          signUpUrl.searchParams.set("redirect", pathname);
+        }
+        return NextResponse.redirect(signUpUrl);
+      }
     }
 
     return NextResponse.next();
   } catch (error) {
-    // If there's an error with Better Auth, allow the request to continue
-    console.error('Middleware error:', error);
+    // If there's an error, allow access to auth pages but redirect dashboard to sign-up
+    const { pathname } = request.nextUrl;
+    if (pathname.startsWith("/dashboard")) {
+      return NextResponse.redirect(new URL("/sign-up", request.url));
+    }
+    // Allow other pages to continue
     return NextResponse.next();
   }
 }

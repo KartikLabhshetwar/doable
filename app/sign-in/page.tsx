@@ -22,10 +22,15 @@ export default function SignInPage() {
   // Check if user is already logged in and redirect if needed
   useEffect(() => {
     const checkSession = async () => {
-      const { data: session } = await authClient.getSession()
-      if (session?.user) {
-        const redirectUrl = searchParams.get("redirect") || "/dashboard"
-        router.push(redirectUrl)
+      try {
+        const { data: session } = await authClient.getSession()
+        if (session?.user) {
+          const redirectUrl = searchParams.get("redirect") || "/dashboard"
+          router.push(redirectUrl)
+        }
+      } catch (error) {
+        // Session check failed, allow user to stay on sign-in page
+        console.error("Session check error:", error)
       }
     }
     checkSession()
