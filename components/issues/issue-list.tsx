@@ -2,8 +2,9 @@
 
 import { useState, useMemo } from 'react'
 import { WorkflowState } from '@prisma/client'
-import { IssueWithRelations } from '@/lib/types'
+import { IssueWithRelations, PriorityLevel } from '@/lib/types'
 import { UserAvatar } from '@/components/shared/user-avatar'
+import { PriorityIcon } from '@/components/shared/priority-icon'
 import { Button } from '@/components/ui/button'
 import { ChevronDown, ChevronRight, Plus, X } from 'lucide-react'
 import { ActionsMenu, issueActions } from '@/components/shared/actions-menu'
@@ -224,6 +225,14 @@ export function IssueList({
                       <span className="flex-1 text-sm text-foreground truncate">
                         {issue.title}
                       </span>
+
+                      {/* Priority */}
+                      <div className="flex-shrink-0">
+                        <PriorityIcon 
+                          priority={(issue.priority || 'none') as PriorityLevel} 
+                          className="opacity-70"
+                        />
+                      </div>
 
                       {/* Assignee avatar */}
                       <div className="flex-shrink-0">

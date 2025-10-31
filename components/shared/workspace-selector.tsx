@@ -133,11 +133,11 @@ export function WorkspaceSelector({ currentTeamId, currentTeamName }: WorkspaceS
   }
 
   return (
-    <div className="flex items-center gap-3 w-full">
+    <div className="flex flex-col gap-2 w-full">
       <div className="flex items-center gap-2 px-2">
         <div className="font-semibold text-lg">doable</div>
       </div>
-      <div className="flex-1">
+      <div className="w-full">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button 

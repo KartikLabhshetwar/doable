@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils'
-import { IssueWithRelations } from '@/lib/types'
+import { IssueWithRelations, PriorityLevel } from '@/lib/types'
 import { Card } from '@/components/ui/card'
+import { PriorityIcon } from '@/components/shared/priority-icon'
 import { Circle, X } from 'lucide-react'
 
 interface IssueCardProps {
@@ -52,11 +53,19 @@ export function IssueCard({
           <span className="font-mono text-xs font-medium text-muted-foreground">
             {issueId}
           </span>
-          {issue.assignee && (
-            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-[10px] text-white font-medium flex-shrink-0">
-              {assigneeInitials.slice(0, 2)}
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Priority */}
+            <PriorityIcon 
+              priority={(issue.priority || 'none') as PriorityLevel} 
+              className="opacity-70"
+            />
+            {/* Assignee */}
+            {issue.assignee && (
+              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-[10px] text-white font-medium flex-shrink-0">
+                {assigneeInitials.slice(0, 2)}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Title with status indicator */}
