@@ -1,9 +1,10 @@
 'use client'
 
-import { Brain, User } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Markdown } from '@/components/ui/markdown'
 import { cn } from '@/lib/utils'
+import IconUser from '../ui/IconUser'
+import IconPaperPlane from '../ui/IconPaperPlane'
 
 interface ChatMessageProps {
   message: {
@@ -25,9 +26,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
       <Avatar className="h-8 w-8 shrink-0">
         <AvatarFallback>
           {isUser ? (
-            <User className="h-4 w-4" />
+            <IconUser className="h-4 w-4" />
           ) : (
-            <Brain className="h-4 w-4" />
+            <IconPaperPlane className="h-4 w-4" />
           )}
         </AvatarFallback>
       </Avatar>

@@ -3,13 +3,18 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, BarChart3, Shield, CheckCircle2, Target, AlertCircle, Key, Brain } from "lucide-react"
 import { ChartContainer } from "@/components/ui/chart"
 import { BarChart, Bar, XAxis, YAxis, PieChart, Pie, Cell, Tooltip } from "recharts"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
 import { ApiKeyDialog } from "@/components/shared/api-key-dialog"
 import { Badge } from "@/components/ui/badge"
+import IconFiles from "@/components/ui/IconFiles"
+import IconKey from "@/components/ui/IconKey"
+import IconPaperPlane from "@/components/ui/IconPaperPlane"
+import IconUsers from "@/components/ui/IconUsers"
+import IconSquareChartLine from "@/components/ui/IconSquareChartLine"
+import IconCircleCheck from "@/components/ui/IconCircleCheck"
 
 const COLORS = {
   urgent: '#ef4444',
@@ -96,7 +101,7 @@ export function ManagementPageClient() {
           onClick={() => setApiKeyDialogOpen(true)}
           className="gap-2"
         >
-          <Key className="h-4 w-4" />
+          <IconKey className="h-4 w-4" />
           Manage API Key
           {apiKeyStatus?.hasKey && (
             <Badge variant="default" className="ml-2">
@@ -112,11 +117,11 @@ export function ManagementPageClient() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-primary/20 p-2">
-                <Brain className="h-5 w-5 text-primary" />
+                <IconPaperPlane className="h-5 w-5 text-primary" />
               </div>
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  Doable AI
+                  doable AI
                   {apiKeyStatus?.hasKey ? (
                     <Badge variant="default" className="bg-green-600">Ready</Badge>
                   ) : (
@@ -139,7 +144,7 @@ export function ManagementPageClient() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Team Members</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <IconUsers className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.stats?.members || 0}</div>
@@ -150,7 +155,7 @@ export function ManagementPageClient() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <IconSquareChartLine className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.stats?.projects || 0}</div>
@@ -161,7 +166,7 @@ export function ManagementPageClient() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Issues</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
+            <IconFiles className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.stats?.totalIssues || 0}</div>
@@ -172,7 +177,7 @@ export function ManagementPageClient() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
+            <IconCircleCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.stats?.completionRate || 0}%</div>
@@ -266,7 +271,7 @@ export function ManagementPageClient() {
               stats.recentIssues.map((issue: any) => (
                 <div key={issue.id} className="flex items-center justify-between py-2 border-b last:border-0">
                   <div className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                    <IconFiles className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">{issue.title}</span>
                   </div>
                   <span className="text-xs text-muted-foreground">
@@ -286,7 +291,7 @@ export function ManagementPageClient() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <IconCircleCheck className="h-5 w-5 text-green-600" />
               <div>
                 <p className="text-sm font-medium">Completion Rate</p>
                 <p className="text-xs text-muted-foreground">
@@ -295,7 +300,7 @@ export function ManagementPageClient() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Users className="h-5 w-5 text-blue-600" />
+              <IconUsers className="h-5 w-5 text-blue-600" />
               <div>
                 <p className="text-sm font-medium">Team Size</p>
                 <p className="text-xs text-muted-foreground">
@@ -304,7 +309,7 @@ export function ManagementPageClient() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <BarChart3 className="h-5 w-5 text-purple-600" />
+              <IconSquareChartLine className="h-5 w-5 text-purple-600" />
               <div>
                 <p className="text-sm font-medium">Active Projects</p>
                 <p className="text-xs text-muted-foreground">

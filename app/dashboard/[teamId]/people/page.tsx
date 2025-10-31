@@ -21,11 +21,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { UserAvatar } from '@/components/shared/user-avatar'
-import { UserPlus, Mail, Trash2, AlertCircle } from 'lucide-react'
+import { Mail, Trash2 } from 'lucide-react'
 import { useToast } from '@/lib/hooks/use-toast'
 import { ToastContainer } from '@/lib/hooks/use-toast'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
+import IconUsers from '@/components/ui/IconUsers'
 
 interface TeamMember {
   id: string
@@ -283,7 +284,7 @@ export default function PeoplePage() {
           </p>
         </div>
         <Button onClick={() => setInviteDialogOpen(true)} className="font-medium">
-          <UserPlus className="h-4 w-4 mr-2" />
+          <IconUsers className="h-4 w-4 mr-2" />
           Invite Developer
         </Button>
       </div>

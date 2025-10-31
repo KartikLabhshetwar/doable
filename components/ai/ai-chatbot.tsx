@@ -3,9 +3,10 @@
 import { useEffect, useRef } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
-import { Loader2, Brain } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { ChatMessage } from './chat-message'
 import { ChatInput } from './chat-input'
+import IconPaperPlane from '../ui/IconPaperPlane'
 
 interface AIChatbotProps {
   teamId: string
@@ -229,7 +230,7 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
       <div className="border-b border-border p-4">
         <div className="flex items-center gap-2">
           <div className="rounded-full bg-primary/10 p-2">
-            <Brain className="h-5 w-5 text-primary" />
+            <IconPaperPlane className="h-5 w-5 text-primary" />
           </div>
           <div>
             <h2 className="text-lg font-semibold">Doable AI</h2>
@@ -244,7 +245,7 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-            <Brain className="h-12 w-12 text-muted-foreground mb-4" />
+            <IconPaperPlane className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
             <p className="text-sm text-muted-foreground max-w-sm">
               I can help you create issues, manage projects, invite team members, and more. 

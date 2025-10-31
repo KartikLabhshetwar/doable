@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, Building2, Trash2 } from 'lucide-react'
+import IconStackPerspective from '../ui/IconStackPerspective'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -140,7 +141,7 @@ export function WorkspaceSelector({ currentTeamId, currentTeamName }: WorkspaceS
   return (
     <div className="flex items-center gap-3 w-full">
       <div className="flex items-center gap-2 px-2">
-        <div className="font-semibold text-lg">Doable</div>
+        <div className="font-semibold text-lg">doable</div>
       </div>
       <div className="flex-1">
         <DropdownMenu>
@@ -168,7 +169,7 @@ export function WorkspaceSelector({ currentTeamId, currentTeamName }: WorkspaceS
                     className="flex items-center flex-1 cursor-pointer"
                     onClick={() => handleTeamSwitch(team.id)}
                   >
-                    <Building2 className="mr-2 h-4 w-4" />
+                    <IconStackPerspective className="mr-2 h-4 w-4" />
                     <span className="truncate">{team.name}</span>
                   </div>
                   <Button
@@ -191,7 +192,7 @@ export function WorkspaceSelector({ currentTeamId, currentTeamName }: WorkspaceS
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Workspace?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{teamToDelete?.name}"? This action cannot be undone. 
+              Are you sure you want to delete &quot;{teamToDelete?.name}&quot;? This action cannot be undone. 
               All projects, issues, and data in this workspace will be permanently deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -1,14 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   PromptInput,
   PromptInputTextarea,
   PromptInputActions,
 } from '@/components/ui/prompt-input'
-
+import IconPaperPlane from '../ui/IconPaperPlane'
 interface ChatInputProps {
   onSend: (message: string) => void
   disabled?: boolean
@@ -45,7 +44,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
             onClick={handleSubmit}
             className="h-9 w-9 rounded-full shrink-0"
           >
-            <Send className="h-4 w-4" />
+            <IconPaperPlane className="h-4 w-4" />
           </Button>
         </PromptInputActions>
       </PromptInput>

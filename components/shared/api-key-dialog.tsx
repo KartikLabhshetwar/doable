@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/lib/hooks/use-toast'
 import { Key, Eye, EyeOff } from 'lucide-react'
+import IconKey from '@/components/ui/IconKey'
 
 const apiKeySchema = z.object({
   apiKey: z.string().min(10, 'API key must be at least 10 characters'),
@@ -150,7 +151,7 @@ export function ApiKeyDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5" />
+            <IconKey className="h-5 w-5" />
             Manage Groq API Key
           </DialogTitle>
           <DialogDescription>
