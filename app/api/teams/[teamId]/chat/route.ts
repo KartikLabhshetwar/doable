@@ -700,13 +700,19 @@ Always use the provided tools for actions.`
                   ? resolveWorkflowState(teamContext, updateData.workflowStateId)
                   : undefined
 
-                // Resolve assignee if provided
-                let resolvedAssigneeId = updateData.assigneeId
-                if (updateData.assigneeId) {
+                // Resolve assignee and handle unassignment
+                let resolvedAssigneeId: string | null = null
+                let resolvedAssigneeName: string | null = null
+                if (updateData.assigneeId && updateData.assigneeId !== 'unassigned' && updateData.assigneeId !== 'null' && updateData.assigneeId !== 'undefined') {
                   const assignee = resolveAssignee(teamContext, updateData.assigneeId)
                   if (assignee) {
                     resolvedAssigneeId = assignee.userId
+                    resolvedAssigneeName = assignee.userName
                   }
+                } else if (updateData.assigneeId === null || updateData.assigneeId === 'unassigned' || updateData.assigneeId === 'null' || updateData.assigneeId === 'undefined') {
+                  // Explicitly unassign
+                  resolvedAssigneeId = null
+                  resolvedAssigneeName = null
                 }
 
                 // Resolve labels if provided
@@ -718,7 +724,10 @@ Always use the provided tools for actions.`
                   ...(updateData.newTitle && { title: updateData.newTitle }),
                   ...(updateData.description !== undefined && updateData.description !== null && { description: updateData.description }),
                   ...(resolvedWorkflowStateId && { workflowStateId: resolvedWorkflowStateId }),
-                  ...(resolvedAssigneeId !== undefined && { assigneeId: resolvedAssigneeId || null }),
+                  ...(updateData.assigneeId !== undefined && { 
+                    assigneeId: resolvedAssigneeId ?? null,
+                    assignee: resolvedAssigneeName
+                  }),
                   ...(updateData.priority && { priority: updateData.priority }),
                   ...(updateData.estimate !== undefined && { estimate: updateData.estimate || null }),
                   ...(resolvedLabelIds && { labelIds: resolvedLabelIds }),

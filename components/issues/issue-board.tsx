@@ -170,7 +170,7 @@ export function IssueBoard({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Column settings</DropdownMenuItem>
+                      <DropdownMenuItem>Hide column</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                   <Button
@@ -231,11 +231,6 @@ export function IssueBoard({
                                   <IssueCard
                                     issue={issue}
                                     onClick={() => onIssueClick?.(issue)}
-                                    onView={onIssueView}
-                                    onEdit={onIssueEdit}
-                                    onAssign={onIssueAssign}
-                                    onMove={onIssueMove}
-                                    onDelete={onIssueDelete}
                                     isDragging={snapshot.isDragging}
                                     className={cn(
                                       'cursor-pointer',

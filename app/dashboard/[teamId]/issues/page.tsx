@@ -15,6 +15,8 @@ import { CommandPalette } from '@/components/shared/command-palette'
 import { CreateIssueData, IssueFilters, IssueSort, ViewType, IssueWithRelations } from '@/lib/types'
 import { useCommandPalette, useCreateShortcut } from '@/lib/hooks/use-keyboard-shortcuts'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { createIssueAction, updateIssueAction, deleteIssueAction } from '@/lib/actions/issues'
+import { useTransition } from 'react'
 import { IssueCardSkeleton, TableSkeleton, BoardSkeleton } from '@/components/ui/skeletons'
 import { Spinner } from '@/components/ui/spinner'
 import { Plus, AlertTriangle, Filter } from 'lucide-react'
@@ -111,6 +113,7 @@ export default function IssuesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
 
   // Listen for sidebar collapse state changes
@@ -315,77 +318,51 @@ export default function IssuesPage() {
   }
 
   const handleIssueDelete = async (issueId: string) => {
-    try {
-      const response = await fetch(`/api/teams/${teamId}/issues/${issueId}`, {
-        method: 'DELETE',
-      })
-
-      if (response.ok) {
+    startTransition(async () => {
+      const result = await deleteIssueAction(teamId, issueId)
+      if (result.success) {
         setIssues(prev => prev.filter(i => i.id !== issueId))
+        cache.delete(cacheKeys.issues)
       } else {
-        throw new Error('Failed to delete issue')
+        console.error('Error deleting issue:', result.error)
       }
-    } catch (error) {
-      console.error('Error deleting issue:', error)
-    }
+    })
   }
 
   const handleIssueUpdate = async (data: any) => {
     if (!currentIssue) return
 
-    try {
-      const response = await fetch(`/api/teams/${teamId}/issues/${currentIssue.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+    return new Promise<void>((resolve, reject) => {
+      startTransition(async () => {
+        const result = await updateIssueAction(teamId, currentIssue.id, data)
+        if (result.success && result.issue) {
+          setIssues(prev => prev.map(i => i.id === currentIssue.id ? result.issue : i))
+          cache.delete(cacheKeys.issues)
+          resolve()
+        } else {
+          const error = new Error(result.error || 'Failed to update issue')
+          console.error('Error updating issue:', error)
+          reject(error)
+        }
       })
-
-      if (response.ok) {
-        const updatedIssue = await response.json()
-        setIssues(prev => prev.map(i => i.id === currentIssue.id ? updatedIssue : i))
-        
-        // Clear issues cache to force refresh
-        cache.delete(cacheKeys.issues)
-        
-      } else {
-        const errorData = await response.json()
-        console.error('API Error:', errorData)
-        throw new Error(errorData.error || 'Failed to update issue')
-      }
-    } catch (error) {
-      console.error('Error updating issue:', error)
-      throw error
-    }
+    })
   }
 
   const handleCreateIssue = async (data: CreateIssueData) => {
-    try {
-      const response = await fetch(`/api/teams/${teamId}/issues`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+    return new Promise<void>((resolve, reject) => {
+      startTransition(async () => {
+        const result = await createIssueAction(teamId, data)
+        if (result.success && result.issue) {
+          setIssues(prev => [result.issue, ...prev])
+          cache.delete(cacheKeys.issues)
+          resolve()
+        } else {
+          const error = new Error(result.error || 'Failed to create issue')
+          console.error('Error creating issue:', error)
+          reject(error)
+        }
       })
-
-      if (response.ok) {
-        const newIssue = await response.json()
-        setIssues(prev => [newIssue, ...prev])
-        
-        // Clear issues cache to force refresh
-        cache.delete(cacheKeys.issues)
-        
-      } else {
-        const errorData = await response.json()
-        console.error('API Error:', errorData)
-        throw new Error(errorData.error || 'Failed to create issue')
-      }
-    } catch (error) {
-      console.error('Error creating issue:', error)
-      throw error
-    }
+    })
   }
 
   const handleFiltersChange = (newFilters: IssueFilters) => {
@@ -590,65 +567,31 @@ export default function IssuesPage() {
                           )
                           
                           if (targetState) {
-                            try {
-                              // Set current issue for the update handler
-                              setCurrentIssue(issue)
-                              
-                              const response = await fetch(`/api/teams/${teamId}/issues/${issueId}`, {
-                                method: 'PATCH',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({
-                                  workflowStateId: targetState.id
-                                }),
+                            startTransition(async () => {
+                              const result = await updateIssueAction(teamId, issueId, {
+                                workflowStateId: targetState.id
                               })
-
-                              if (response.ok) {
-                                const updatedIssue = await response.json()
-                                setIssues(prev => prev.map(i => i.id === issueId ? updatedIssue : i))
+                              if (result.success && result.issue) {
+                                setIssues(prev => prev.map(i => i.id === issueId ? result.issue : i))
                                 cache.delete(cacheKeys.issues)
+                              } else {
+                                console.error('Error updating issue:', result.error)
                               }
-                            } catch (error) {
-                              console.error('Error updating issue:', error)
-                            } finally {
-                              setCurrentIssue(null)
-                            }
-                          }
-                        }}
-                        onStatusChange={async (issueId, workflowStateId) => {
-                          const issue = issues.find(i => i.id === issueId)
-                          if (!issue) return
-                          
-                          try {
-                            const response = await fetch(`/api/teams/${teamId}/issues/${issueId}`, {
-                              method: 'PATCH',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                              body: JSON.stringify({
-                                workflowStateId
-                              }),
                             })
-
-                            if (response.ok) {
-                              const updatedIssue = await response.json()
-                              setIssues(prev => prev.map(i => i.id === issueId ? updatedIssue : i))
-                              cache.delete(cacheKeys.issues)
-                            } else {
-                              throw new Error('Failed to update issue')
-                            }
-                          } catch (error) {
-                            console.error('Error updating issue status:', error)
                           }
                         }}
+                        onIssueView={handleIssueView}
+                        onIssueEdit={handleIssueEdit}
+                        onIssueAssign={handleIssueAssign}
+                        onIssueMove={handleIssueMove}
+                        onIssueDelete={handleIssueDelete}
                       />
                     </CardContent>
                   </Card>
                 )}
 
                 {currentView === 'board' && (
-                  <div className="h-[calc(100vh-200px)] sm:h-[calc(100vh-280px)] overflow-hidden relative -mx-6 px-2 sm:px-6">
+                  <div className="h-[calc(100vh-200px)] sm:h-[calc(100vh-280px)] overflow-x-auto overflow-y-hidden relative -mx-6 px-2 sm:px-6">
                     <IssueBoard
                       issues={filteredIssues as any}
                       workflowStates={workflowStates}
@@ -787,7 +730,7 @@ export default function IssuesPage() {
           description: currentIssue.description ?? undefined,
           projectId: currentIssue.project?.id,
           workflowStateId: currentIssue.workflowStateId,
-          assigneeId: currentIssue.assignee || '',
+          assigneeId: currentIssue.assigneeId || '',
           priority: currentIssue.priority as any,
           estimate: (currentIssue as any).estimate,
           labelIds: currentIssue.labels.map(l => l.label.id),
@@ -816,7 +759,7 @@ export default function IssuesPage() {
           description: currentIssue.description ?? undefined,
           projectId: currentIssue.project?.id,
           workflowStateId: currentIssue.workflowStateId,
-          assigneeId: currentIssue.assignee || '',
+          assigneeId: currentIssue.assigneeId || '',
           priority: currentIssue.priority as any,
           estimate: (currentIssue as any).estimate,
           labelIds: currentIssue.labels.map(l => l.label.id),
@@ -844,7 +787,7 @@ export default function IssuesPage() {
           description: currentIssue.description ?? undefined,
           projectId: currentIssue.project?.id,
           workflowStateId: currentIssue.workflowStateId,
-          assigneeId: currentIssue.assignee || '',
+          assigneeId: currentIssue.assigneeId || '',
           priority: currentIssue.priority as any,
           estimate: (currentIssue as any).estimate,
           labelIds: currentIssue.labels.map(l => l.label.id),

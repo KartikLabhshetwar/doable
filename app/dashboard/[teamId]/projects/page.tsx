@@ -11,6 +11,8 @@ import { ProjectList } from '@/components/projects/project-list'
 import { ViewSwitcher } from '@/components/shared/view-switcher'
 import { CreateProjectData, UpdateProjectData, ProjectWithRelations } from '@/lib/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { createProjectAction, updateProjectAction, deleteProjectAction } from '@/lib/actions/projects'
+import { useTransition } from 'react'
 import { ProjectCardSkeleton } from '@/components/ui/skeletons'
 import { Plus, Filter, AlertTriangle, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -58,6 +60,7 @@ export default function ProjectsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(12)
+  const [isPending, startTransition] = useTransition()
 
 
   // Use ref to store latest fetchProjects to avoid stale closure issues
@@ -131,19 +134,14 @@ export default function ProjectsPage() {
   }
 
   const handleProjectDelete = async (projectId: string) => {
-    try {
-      const response = await fetch(`/api/teams/${teamId}/projects/${projectId}`, {
-        method: 'DELETE',
-      })
-
-      if (response.ok) {
+    startTransition(async () => {
+      const result = await deleteProjectAction(teamId, projectId)
+      if (result.success) {
         setProjects(prev => prev.filter(p => p.id !== projectId))
       } else {
-        throw new Error('Failed to delete project')
+        console.error('Error deleting project:', result.error)
       }
-    } catch (error) {
-      console.error('Error deleting project:', error)
-    }
+    })
   }
 
   const handleProjectDuplicate = async (project: ProjectWithRelations) => {
@@ -157,20 +155,14 @@ export default function ProjectsPage() {
         leadId: project.leadId ?? undefined,
       }
       
-      const response = await fetch(`/api/teams/${teamId}/projects`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(duplicateData),
+      startTransition(async () => {
+        const result = await createProjectAction(teamId, duplicateData)
+        if (result.success && result.project) {
+          setProjects(prev => [result.project as ProjectWithRelations, ...prev])
+        } else {
+          console.error('Error duplicating project:', result.error)
+        }
       })
-
-      if (response.ok) {
-        const newProject = await response.json()
-        setProjects(prev => [newProject, ...prev])
-      } else {
-        throw new Error('Failed to duplicate project')
-      }
     } catch (error) {
       console.error('Error duplicating project:', error)
     }
@@ -179,73 +171,52 @@ export default function ProjectsPage() {
   const handleProjectUpdate = async (data: CreateProjectData | UpdateProjectData) => {
     if (!currentProject) return
 
-    try {
-      const response = await fetch(`/api/teams/${teamId}/projects/${currentProject.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+    return new Promise<void>((resolve, reject) => {
+      startTransition(async () => {
+        const result = await updateProjectAction(teamId, currentProject.id, data)
+        if (result.success && result.project) {
+          setProjects(prev => prev.map(p => p.id === currentProject.id ? result.project as ProjectWithRelations : p))
+          resolve()
+        } else {
+          const error = new Error(result.error || 'Failed to update project')
+          console.error('Error updating project:', error)
+          reject(error)
+        }
       })
-
-      if (response.ok) {
-        const updatedProject = await response.json()
-        setProjects(prev => prev.map(p => p.id === currentProject.id ? updatedProject : p))
-      } else {
-        throw new Error('Failed to update project')
-      }
-    } catch (error) {
-      console.error('Error updating project:', error)
-      throw error
-    }
+    })
   }
 
   const handleProjectArchive = async (projectId: string) => {
-    try {
-      const response = await fetch(`/api/teams/${teamId}/projects/${projectId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: 'canceled' }),
-      })
-
-      if (response.ok) {
+    startTransition(async () => {
+      const result = await updateProjectAction(teamId, projectId, { status: 'canceled' })
+      if (result.success && result.project) {
         setProjects(prev => 
           prev.map(p => 
             p.id === projectId 
-              ? { ...p, status: 'canceled' }
+              ? result.project as ProjectWithRelations
               : p
           )
         )
       } else {
-        throw new Error('Failed to archive project')
+        console.error('Error archiving project:', result.error)
       }
-    } catch (error) {
-      console.error('Error archiving project:', error)
-    }
+    })
   }
 
   const handleCreateProject = async (data: CreateProjectData | UpdateProjectData) => {
-    try {
-      const response = await fetch(`/api/teams/${teamId}/projects`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+    return new Promise<void>((resolve, reject) => {
+      startTransition(async () => {
+        const result = await createProjectAction(teamId, data as CreateProjectData)
+        if (result.success && result.project) {
+          setProjects(prev => [result.project as ProjectWithRelations, ...prev])
+          resolve()
+        } else {
+          const error = new Error(result.error || 'Failed to create project')
+          console.error('Error creating project:', error)
+          reject(error)
+        }
       })
-
-      if (response.ok) {
-        const newProject = await response.json()
-        setProjects(prev => [newProject, ...prev])
-      } else {
-        throw new Error('Failed to create project')
-      }
-    } catch (error) {
-      console.error('Error creating project:', error)
-      throw error
-    }
+    })
   }
 
   // Filter functions
@@ -517,32 +488,16 @@ export default function ProjectsPage() {
                           handleProjectEdit(project)
                         }}
                         onProjectCheck={async (projectId, checked) => {
-                          const project = projects.find(p => p.id === projectId)
-                          if (!project) return
-                          
-                          try {
-                            // Set current project for the update handler
-                            setCurrentProject(project)
-                            
-                            const response = await fetch(`/api/teams/${teamId}/projects/${projectId}`, {
-                              method: 'PATCH',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                              body: JSON.stringify({
-                                status: checked ? 'completed' : 'active'
-                              }),
+                          startTransition(async () => {
+                            const result = await updateProjectAction(teamId, projectId, {
+                              status: checked ? 'completed' : 'active'
                             })
-
-                            if (response.ok) {
-                              const updatedProject = await response.json()
-                              setProjects(prev => prev.map(p => p.id === projectId ? updatedProject : p))
+                            if (result.success && result.project) {
+                              setProjects(prev => prev.map(p => p.id === projectId ? result.project as ProjectWithRelations : p))
+                            } else {
+                              console.error('Error updating project:', result.error)
                             }
-                          } catch (error) {
-                            console.error('Error updating project:', error)
-                          } finally {
-                            setCurrentProject(null)
-                          }
+                          })
                         }}
                       />
                     </CardContent>

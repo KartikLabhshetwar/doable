@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { IssueWithRelations } from '@/lib/types'
 import { WorkflowState } from '@prisma/client'
+import { IssueWithRelations } from '@/lib/types'
 import { UserAvatar } from '@/components/shared/user-avatar'
 import { Button } from '@/components/ui/button'
-import { ChevronDown, ChevronRight, Plus, MoreVertical, X } from 'lucide-react'
-import { StatusChangeDropdown } from './status-change-dropdown'
+import { ChevronDown, ChevronRight, Plus, X } from 'lucide-react'
+import { ActionsMenu, issueActions } from '@/components/shared/actions-menu'
 
 interface IssueListProps {
   issues: IssueWithRelations[]
@@ -15,6 +15,11 @@ interface IssueListProps {
   onIssueClick?: (issue: IssueWithRelations) => void
   onIssueCheck?: (issueId: string, checked: boolean) => void
   onStatusChange?: (issueId: string, workflowStateId: string) => void
+  onIssueView?: (issue: IssueWithRelations) => void
+  onIssueEdit?: (issue: IssueWithRelations) => void
+  onIssueAssign?: (issue: IssueWithRelations) => void
+  onIssueMove?: (issue: IssueWithRelations) => void
+  onIssueDelete?: (issueId: string) => void
 }
 
 export function IssueList({
@@ -24,6 +29,11 @@ export function IssueList({
   onIssueClick,
   onIssueCheck,
   onStatusChange,
+  onIssueView,
+  onIssueEdit,
+  onIssueAssign,
+  onIssueMove,
+  onIssueDelete,
 }: IssueListProps) {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
 
@@ -162,31 +172,6 @@ export function IssueList({
                       className="flex items-center gap-3 px-3 py-2 hover:bg-muted/30 transition-colors group/item cursor-pointer"
                       onClick={() => onIssueClick?.(issue)}
                     >
-                      {/* Left icon/ellipsis with status dropdown */}
-                      <div className="flex-shrink-0">
-                        {onStatusChange ? (
-                          <StatusChangeDropdown
-                            currentState={issue.workflowState}
-                            workflowStates={workflowStates}
-                            onStatusChange={(stateId) => {
-                              onStatusChange(issue.id, stateId)
-                            }}
-                            trigger={
-                              <button
-                                className="opacity-0 group-hover/item:opacity-100 transition-opacity"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                }}
-                              >
-                                <MoreVertical className="h-4 w-4 text-muted-foreground/60" />
-                              </button>
-                            }
-                          />
-                        ) : (
-                          <MoreVertical className="h-4 w-4 text-muted-foreground/60 opacity-0 group-hover/item:opacity-100 transition-opacity" />
-                        )}
-                      </div>
-
                       {/* Issue identifier */}
                       <span className="text-xs font-mono text-muted-foreground flex-shrink-0">
                         {identifier}
@@ -208,6 +193,32 @@ export function IssueList({
                           <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />
                         )}
                       </button>
+
+                      {/* Actions menu - appears on hover */}
+                      <div 
+                        className="flex-shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ActionsMenu
+                          actions={[
+                            issueActions.view(() => onIssueView?.(issue)),
+                            issueActions.edit(() => onIssueEdit?.(issue)),
+                            issueActions.assign(() => onIssueAssign?.(issue)),
+                            issueActions.move(() => onIssueMove?.(issue)),
+                            issueActions.delete(() => onIssueDelete?.(issue.id)),
+                          ]}
+                          trigger={
+                            <button
+                              className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted/70 transition-colors text-muted-foreground/60 hover:text-muted-foreground"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                              }}
+                            >
+                              <span className="text-xs">⋯</span>
+                            </button>
+                          }
+                        />
+                      </div>
 
                       {/* Title */}
                       <span className="flex-1 text-sm text-foreground truncate">

@@ -1,30 +1,18 @@
 import { cn } from '@/lib/utils'
 import { IssueWithRelations } from '@/lib/types'
-import { UserAvatar } from '@/components/shared/user-avatar'
 import { Card } from '@/components/ui/card'
-import { ActionsMenu, issueActions } from '@/components/shared/actions-menu'
 import { Circle, X } from 'lucide-react'
 
 interface IssueCardProps {
   issue: IssueWithRelations
   onClick?: () => void
-  onView?: (issue: IssueWithRelations) => void
-  onEdit?: (issue: IssueWithRelations) => void
-  onAssign?: (issue: IssueWithRelations) => void
-  onMove?: (issue: IssueWithRelations) => void
-  onDelete?: (issueId: string) => void
   className?: string
   isDragging?: boolean
 }
 
 export function IssueCard({ 
   issue, 
-  onClick, 
-  onView,
-  onEdit,
-  onAssign,
-  onMove,
-  onDelete,
+  onClick,
   className, 
   isDragging 
 }: IssueCardProps) {
@@ -81,25 +69,6 @@ export function IssueCard({
           </h3>
         </div>
 
-        {/* Footer with actions menu */}
-        <div className="flex items-center justify-end pt-1" onClick={(e) => e.stopPropagation()}>
-          <ActionsMenu
-            actions={[
-              issueActions.view(() => onView?.(issue)),
-              issueActions.edit(() => onEdit?.(issue)),
-              issueActions.assign(() => onAssign?.(issue)),
-              issueActions.move(() => onMove?.(issue)),
-              issueActions.delete(() => onDelete?.(issue.id)),
-            ]}
-            trigger={
-              <button
-                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted/70 transition-colors text-muted-foreground/60 hover:text-muted-foreground"
-              >
-                <span className="text-xs">⋯</span>
-              </button>
-            }
-          />
-        </div>
       </div>
     </Card>
   )

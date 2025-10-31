@@ -47,7 +47,7 @@ export interface CreateIssueData {
 
 export interface UpdateIssueData {
   title?: string
-  description?: string
+  description?: string | null
   projectId?: string | null
   workflowStateId?: string
   assigneeId?: string | null

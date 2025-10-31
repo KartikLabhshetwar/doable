@@ -45,8 +45,6 @@ import {
   Tag, 
   MoreVertical, 
   X, 
-  Maximize2,
-  Paperclip,
   Check
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -104,6 +102,7 @@ export function IssueDialog({
 
   const form = useForm<IssueFormData>({
     resolver: zodResolver(issueSchema),
+    mode: 'onChange',
     defaultValues: {
       title: initialData?.title || '',
       description: initialData?.description || '',
@@ -120,11 +119,19 @@ export function IssueDialog({
     if (open && initialData) {
       const resetData = {
         ...initialData,
+        title: initialData.title || '',
         projectId: initialData.projectId || '',
+        workflowStateId: initialData.workflowStateId || (workflowStates.length > 0 ? workflowStates[0].id : ''),
+        assigneeId: initialData.assigneeId || '',
+        priority: initialData.priority || 'none',
         labelIds: initialData.labelIds || []
       }
       form.reset(resetData)
       setSelectedLabels(initialData.labelIds || [])
+      // Trigger validation to ensure form is valid
+      setTimeout(() => {
+        form.trigger()
+      }, 0)
     } else if (open) {
       // Check if we're creating from a board column
       const storedWorkflowStateId = typeof window !== 'undefined' 
@@ -152,21 +159,56 @@ export function IssueDialog({
   }, [open, initialData, form, workflowStates])
 
   useEffect(() => {
-    if (workflowStates.length > 0 && !form.getValues('workflowStateId')) {
-      form.setValue('workflowStateId', workflowStates[0].id)
+    if (workflowStates.length > 0) {
+      const currentWorkflowStateId = form.getValues('workflowStateId')
+      // If no workflow state is set, or if the current one is invalid, set default
+      if (!currentWorkflowStateId || !workflowStates.find(s => s.id === currentWorkflowStateId)) {
+        form.setValue('workflowStateId', workflowStates[0].id)
+      }
     }
   }, [workflowStates, form])
 
   const handleSubmit = async (data: IssueFormData) => {
     setIsSubmitting(true)
     try {
-      await onSubmit({
-        ...data,
-        projectId: data.projectId && data.projectId.trim() !== '' ? data.projectId : undefined,
-        priority: data.priority || 'none',
-        labelIds: selectedLabels,
-        estimate: data.estimate,
-      })
+      // Prepare the submission data
+      // For updates, send all fields (even if empty) so the backend can properly normalize them
+      // For creates, optional fields that are empty can be undefined
+      const isUpdate = !!initialData
+      
+      if (isUpdate) {
+        const submitData: UpdateIssueData = {
+          title: data.title,
+          description: data.description === '' ? null : (data.description || undefined),
+          workflowStateId: data.workflowStateId,
+          projectId: data.projectId && data.projectId.trim() !== '' 
+            ? data.projectId 
+            : null,
+          assigneeId: data.assigneeId && data.assigneeId.trim() !== '' 
+            ? data.assigneeId 
+            : null,
+          priority: data.priority || 'none',
+          estimate: data.estimate,
+          labelIds: selectedLabels,
+        }
+        await onSubmit(submitData)
+      } else {
+        const submitData: CreateIssueData = {
+          title: data.title,
+          description: data.description || undefined,
+          workflowStateId: data.workflowStateId,
+          projectId: data.projectId && data.projectId.trim() !== '' 
+            ? data.projectId 
+            : undefined,
+          assigneeId: data.assigneeId && data.assigneeId.trim() !== '' 
+            ? data.assigneeId 
+            : undefined,
+          priority: data.priority || 'none',
+          estimate: data.estimate,
+          labelIds: selectedLabels,
+        }
+        await onSubmit(submitData)
+      }
       
       if (!createMore || initialData) {
         form.reset()
@@ -255,9 +297,6 @@ export function IssueDialog({
             
             {/* Action Icons */}
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <Maximize2 className="h-4 w-4" />
-              </Button>
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -539,16 +578,7 @@ export function IssueDialog({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between px-6 py-4 border-t">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-              >
-                <Paperclip className="h-4 w-4" />
-              </Button>
-
+            <div className="flex items-center justify-end px-6 py-4 border-t">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Create more</span>

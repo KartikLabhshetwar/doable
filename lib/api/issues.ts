@@ -277,11 +277,12 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
     select: { projectId: true, number: true },
   })
 
-  // Normalize projectId: empty string becomes null
-  const normalizedProjectId = data.projectId === '' ? null : data.projectId
+  if (!currentIssue) {
+    throw new Error('Issue not found')
+  }
 
-  // Handle project change - renumber the issue
-  if (normalizedProjectId !== undefined && normalizedProjectId !== currentIssue?.projectId) {
+  // Handle project change - renumber the issue if project is being changed
+  if (data.projectId !== undefined && data.projectId !== currentIssue.projectId) {
     // Get the last issue number for the entire team (not per project)
     const lastIssue = await db.issue.findFirst({
       where: { teamId },
@@ -291,19 +292,16 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
     
     const nextNumber = (lastIssue?.number || 0) + 1
     data.number = nextNumber
-    data.projectId = normalizedProjectId
-  } else if (normalizedProjectId !== undefined) {
-    data.projectId = normalizedProjectId
   }
 
-  // Handle labels separately
+  // Handle labels separately (before updating the issue)
   if (data.labelIds !== undefined) {
     // Remove existing labels
     await db.issueLabel.deleteMany({
       where: { issueId },
     })
 
-    // Add new labels
+    // Add new labels if any
     if (data.labelIds.length > 0) {
       await db.issueLabel.createMany({
         data: data.labelIds.map((labelId) => ({
@@ -314,8 +312,40 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
     }
   }
 
-  // Update the issue (excluding labelIds)
-  const { labelIds, ...updateData } = data
+  // Build update data object, only including fields that are defined
+  // Exclude labelIds and number (handled separately)
+  const { labelIds, number, ...updateFields } = data
+  
+  // Only include fields that are actually being updated
+  const updateData: any = {}
+  
+  if ('title' in updateFields && updateFields.title !== undefined) {
+    updateData.title = updateFields.title
+  }
+  if ('description' in updateFields && updateFields.description !== undefined) {
+    updateData.description = updateFields.description
+  }
+  if ('projectId' in updateFields && updateFields.projectId !== undefined) {
+    updateData.projectId = updateFields.projectId
+  }
+  if ('workflowStateId' in updateFields && updateFields.workflowStateId !== undefined) {
+    updateData.workflowStateId = updateFields.workflowStateId
+  }
+  if ('assigneeId' in updateFields && updateFields.assigneeId !== undefined) {
+    updateData.assigneeId = updateFields.assigneeId
+  }
+  if ('assignee' in updateFields && updateFields.assignee !== undefined) {
+    updateData.assignee = updateFields.assignee
+  }
+  if ('priority' in updateFields && updateFields.priority !== undefined) {
+    updateData.priority = updateFields.priority
+  }
+  if ('estimate' in updateFields && updateFields.estimate !== undefined) {
+    updateData.estimate = updateFields.estimate
+  }
+  if ('number' in data && data.number !== undefined) {
+    updateData.number = data.number
+  }
 
   const updatedIssue = await db.issue.update({
     where: {
