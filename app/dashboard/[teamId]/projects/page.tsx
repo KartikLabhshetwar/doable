@@ -608,6 +608,7 @@ export default function ProjectsPage() {
         title="Edit Project"
         description="Update the project details."
         teamId={teamId}
+        projectId={currentProject?.id}
       />
 
       </div>

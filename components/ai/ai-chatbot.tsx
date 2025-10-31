@@ -121,6 +121,18 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
               if (textParts.includes('deleted') || textParts.includes('removed')) {
                 if (!toolNames.includes('deleteProject')) toolNames.push('deleteProject')
               }
+              // Project member operations
+              if (textParts.includes('member') || textParts.includes('added') || textParts.includes('removed')) {
+                if (textParts.includes('added') || textParts.includes('add')) {
+                  if (!toolNames.includes('addProjectMember')) toolNames.push('addProjectMember')
+                }
+                if (textParts.includes('removed') || textParts.includes('remove') || textParts.includes('delete')) {
+                  if (!toolNames.includes('removeProjectMember')) toolNames.push('removeProjectMember')
+                }
+                if (textParts.includes('list') || textParts.includes('show') || textParts.includes('members')) {
+                  if (!toolNames.includes('listProjectMembers')) toolNames.push('listProjectMembers')
+                }
+              }
             }
             
             // People operations

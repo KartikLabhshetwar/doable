@@ -1,4 +1,4 @@
-import { Issue, Project, WorkflowState, Label, Comment, Team, IssueLabel } from '@prisma/client'
+import { Issue, Project, WorkflowState, Label, Comment, Team, IssueLabel, ProjectMember } from '@prisma/client'
 
 // Extended types with relations
 export type IssueWithRelations = Issue & {
@@ -15,6 +15,7 @@ export type ProjectWithRelations = Project & {
   team: Team
   lead?: string | null
   issues: Issue[]
+  members: ProjectMember[]
   _count: {
     issues: number
   }

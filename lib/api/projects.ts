@@ -5,6 +5,9 @@ export async function getProjects(teamId: string) {
   return await db.project.findMany({
     where: { teamId },
     include: {
+      members: {
+        orderBy: { createdAt: 'asc' },
+      },
       _count: {
         select: {
           issues: true,
@@ -60,6 +63,9 @@ export async function createProject(teamId: string, data: CreateProjectData) {
       teamId,
     },
     include: {
+      members: {
+        orderBy: { createdAt: 'asc' },
+      },
       _count: {
         select: {
           issues: true,
@@ -87,6 +93,9 @@ export async function updateProject(teamId: string, projectId: string, data: Upd
     },
     data: updateData,
     include: {
+      members: {
+        orderBy: { createdAt: 'asc' },
+      },
       _count: {
         select: {
           issues: true,

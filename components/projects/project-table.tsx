@@ -136,6 +136,9 @@ export function ProjectTable({
                   Lead
                 </th>
                 <th className="text-left p-4 font-medium text-muted-foreground">
+                  Members
+                </th>
+                <th className="text-left p-4 font-medium text-muted-foreground">
                   <SortButton field="issues">Issues</SortButton>
                 </th>
                 <th className="text-left p-4 font-medium text-muted-foreground">
@@ -174,6 +177,32 @@ export function ProjectTable({
                   <td className="p-4">
                     {project.lead ? (
                       <UserAvatar name={project.lead} size="sm" />
+                    ) : (
+                      <span className="text-sm text-muted-foreground">-</span>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    {(project as any).members && (project as any).members.length > 0 ? (
+                      <div className="flex items-center -space-x-1">
+                        {(project as any).members.slice(0, 4).map((member: any, idx: number) => (
+                          <div
+                            key={member.id}
+                            className="relative"
+                            style={{ zIndex: (project as any).members.length - idx }}
+                          >
+                            <UserAvatar
+                              name={member.userName}
+                              size="sm"
+                              className="border border-background"
+                            />
+                          </div>
+                        ))}
+                        {(project as any).members.length > 4 && (
+                          <div className="h-6 w-6 rounded-full bg-muted border border-background flex items-center justify-center text-[10px] text-muted-foreground font-medium ml-1 relative" style={{ zIndex: 0 }}>
+                            +{(project as any).members.length - 4}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-sm text-muted-foreground">-</span>
                     )}

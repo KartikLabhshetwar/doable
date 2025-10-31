@@ -186,11 +186,34 @@ export function ProjectList({
                         {project.name}
                       </span>
 
-                      {/* Lead avatar */}
-                      <div className="flex-shrink-0">
-                        {project.lead ? (
+                      {/* Lead and Members */}
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {project.lead && (
                           <UserAvatar name={project.lead} size="sm" />
-                        ) : (
+                        )}
+                        {(project as any).members && (project as any).members.length > 0 && (
+                          <div className="flex items-center -space-x-1">
+                            {(project as any).members.slice(0, 3).map((member: any, idx: number) => (
+                              <div
+                                key={member.id}
+                                className="relative"
+                                style={{ zIndex: (project as any).members.length - idx }}
+                              >
+                                <UserAvatar
+                                  name={member.userName}
+                                  size="sm"
+                                  className="border border-background"
+                                />
+                              </div>
+                            ))}
+                            {(project as any).members.length > 3 && (
+                              <div className="h-5 w-5 rounded-full bg-muted border border-background flex items-center justify-center text-[10px] text-muted-foreground font-medium relative" style={{ zIndex: 0 }}>
+                                +{(project as any).members.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {!project.lead && (!(project as any).members || (project as any).members.length === 0) && (
                           <div className="h-5 w-5 rounded-full border border-muted-foreground/20 flex items-center justify-center">
                             <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
                           </div>

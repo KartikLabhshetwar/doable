@@ -65,6 +65,7 @@ interface ProjectDialogProps {
   title?: string
   description?: string
   teamId?: string
+  projectId?: string
 }
 
 export function ProjectDialog({
@@ -75,6 +76,7 @@ export function ProjectDialog({
   title = 'New project',
   description = 'Create a new project for your team.',
   teamId,
+  projectId,
 }: ProjectDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -94,6 +96,25 @@ export function ProjectDialog({
   
   // Get lead name
   const [leadName, setLeadName] = useState<string>('')
+  
+  // Project members state
+  const [projectMembers, setProjectMembers] = useState<Array<{
+    id: string
+    userId: string
+    userName: string
+    userEmail: string
+    displayName: string
+    email: string
+    profileImageUrl?: string
+  }>>([])
+  const [membersLoading, setMembersLoading] = useState(false)
+  const [teamMembers, setTeamMembers] = useState<Array<{
+    id: string
+    userId: string
+    displayName: string
+    email: string
+    profileImageUrl?: string
+  }>>([])
 
   const form = useForm<ProjectFormData>({
     resolver: zodResolver(projectSchema),
@@ -142,6 +163,100 @@ export function ProjectDialog({
       setLeadName('')
     }
   }, [currentLeadId, teamId])
+
+  // Fetch project members when editing
+  useEffect(() => {
+    const fetchProjectMembers = async () => {
+      if (!open || !projectId || !teamId) {
+        setProjectMembers([])
+        return
+      }
+
+      try {
+        setMembersLoading(true)
+        const response = await fetch(`/api/teams/${teamId}/projects/${projectId}/members`)
+        if (response.ok) {
+          const members = await response.json()
+          setProjectMembers(members)
+        }
+      } catch (error) {
+        console.error('Error fetching project members:', error)
+      } finally {
+        setMembersLoading(false)
+      }
+    }
+
+    fetchProjectMembers()
+  }, [open, projectId, teamId])
+
+  // Fetch team members for selection
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      if (!teamId || !open) {
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/teams/${teamId}/members`)
+        if (response.ok) {
+          const members = await response.json()
+          setTeamMembers(members)
+        }
+      } catch (error) {
+        console.error('Error fetching team members:', error)
+      }
+    }
+
+    fetchTeamMembers()
+  }, [teamId, open])
+
+  const handleAddMember = async (userId: string) => {
+    if (!projectId || !teamId) return
+
+    try {
+      const response = await fetch(`/api/teams/${teamId}/projects/${projectId}/members`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      })
+
+      if (response.ok) {
+        const newMember = await response.json()
+        setProjectMembers([...projectMembers, newMember])
+      } else {
+        const error = await response.json()
+        setError(error.error || 'Failed to add member')
+      }
+    } catch (error) {
+      console.error('Error adding member:', error)
+      setError('Failed to add member')
+    }
+  }
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!projectId || !teamId) return
+
+    try {
+      const response = await fetch(
+        `/api/teams/${teamId}/projects/${projectId}/members?memberId=${memberId}`,
+        {
+          method: 'DELETE',
+        }
+      )
+
+      if (response.ok) {
+        setProjectMembers(projectMembers.filter(m => m.id !== memberId))
+      } else {
+        const error = await response.json()
+        setError(error.error || 'Failed to remove member')
+      }
+    } catch (error) {
+      console.error('Error removing member:', error)
+      setError('Failed to remove member')
+    }
+  }
 
   // Close calendar when clicking outside
   useEffect(() => {
@@ -470,13 +585,108 @@ export function ProjectDialog({
                       className="h-8 px-3 gap-2"
                     >
                       <Users className="h-4 w-4" />
-                      <span>Members</span>
+                      <span>
+                        {projectMembers.length > 0 ? `${projectMembers.length} Members` : 'Members'}
+                      </span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-64 p-2">
-                    <p className="text-sm text-muted-foreground px-2 py-1">
-                      Member assignment coming soon
-                    </p>
+                  <DropdownMenuContent className="w-80 p-2">
+                    {!projectId ? (
+                      <p className="text-sm text-muted-foreground px-2 py-1">
+                        Save the project first to add members
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="px-2 py-1.5 border-b">
+                          <p className="text-sm font-medium">Project Members</p>
+                          <p className="text-xs text-muted-foreground">
+                            {projectMembers.length} {projectMembers.length === 1 ? 'member' : 'members'}
+                          </p>
+                        </div>
+                        {membersLoading ? (
+                          <div className="px-2 py-4 text-center">
+                            <p className="text-sm text-muted-foreground">Loading members...</p>
+                          </div>
+                        ) : (
+                          <>
+                            {projectMembers.length > 0 && (
+                              <div className="max-h-48 overflow-y-auto space-y-1">
+                                {projectMembers.map((member) => (
+                                  <div
+                                    key={member.id}
+                                    className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-muted/50 group"
+                                  >
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <UserAvatar
+                                        name={member.displayName}
+                                        imageUrl={member.profileImageUrl}
+                                        size="sm"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">
+                                          {member.displayName}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                          {member.email}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={() => handleRemoveMember(member.id)}
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div className="px-2 pt-2 border-t">
+                              <p className="text-xs font-medium text-muted-foreground mb-2">
+                                Add Team Member
+                              </p>
+                              <div className="space-y-1 max-h-32 overflow-y-auto">
+                                {teamMembers
+                                  .filter(
+                                    (tm) => !projectMembers.some((pm) => pm.userId === tm.userId)
+                                  )
+                                  .map((member) => (
+                                    <div
+                                      key={member.id}
+                                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer"
+                                      onClick={() => handleAddMember(member.userId)}
+                                    >
+                                      <UserAvatar
+                                        name={member.displayName}
+                                        imageUrl={member.profileImageUrl}
+                                        size="sm"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">
+                                          {member.displayName}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                          {member.email}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                {teamMembers.filter(
+                                  (tm) => !projectMembers.some((pm) => pm.userId === tm.userId)
+                                ).length === 0 && (
+                                  <p className="text-xs text-muted-foreground px-2 py-1">
+                                    All team members are already in this project
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
 

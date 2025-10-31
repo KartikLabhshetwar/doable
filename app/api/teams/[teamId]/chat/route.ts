@@ -1402,6 +1402,263 @@ Always use the provided tools for actions.`
         },
       }),
 
+      addProjectMember: tool({
+        description: 'Add a team member to a project. The member must already be a team member. Use project name or ID, and member name or email.',
+        inputSchema: z.object({
+          projectId: z.string().optional().describe('The ID of the project'),
+          projectName: z.string().optional().describe('The name of the project (if projectId not provided)'),
+          userId: z.string().optional().describe('The user ID to add'),
+          userEmail: z.string().optional().describe('The email of the user to add'),
+          userName: z.string().optional().describe('The name of the user to add'),
+        }),
+        execute: async ({ projectId, projectName, userId, userEmail, userName }) => {
+          try {
+            // Resolve project
+            let resolvedProjectId = projectId
+            if (projectName && !projectId) {
+              const projects = teamContext.projects
+              const matchingProjects = projects.filter(
+                (project) => project.name.toLowerCase().includes(projectName.toLowerCase())
+              )
+
+              if (matchingProjects.length === 0) {
+                return { success: false, error: `No project found with name "${projectName}"` }
+              }
+
+              if (matchingProjects.length > 1) {
+                return {
+                  success: false,
+                  error: `Multiple projects found matching "${projectName}": ${matchingProjects.map(p => `${p.name} (${p.key})`).join(', ')}. Please be more specific.`,
+                }
+              }
+
+              resolvedProjectId = matchingProjects[0].id
+            }
+
+            if (!resolvedProjectId) {
+              return { success: false, error: 'Either projectId or projectName must be provided' }
+            }
+
+            // Verify project exists
+            const project = await db.project.findUnique({
+              where: { id: resolvedProjectId, teamId },
+            })
+
+            if (!project) {
+              return { success: false, error: 'Project not found' }
+            }
+
+            // Resolve team member
+            let teamMember = null
+            if (userId) {
+              teamMember = teamContext.members.find(m => m.userId === userId)
+            } else if (userEmail) {
+              teamMember = teamContext.members.find(m => m.userEmail.toLowerCase() === userEmail.toLowerCase())
+            } else if (userName) {
+              teamMember = teamContext.members.find(m => m.userName.toLowerCase().includes(userName.toLowerCase()))
+            }
+
+            if (!teamMember) {
+              const availableMembers = teamContext.members.map(m => `${m.userName} (${m.userEmail})`).join(', ')
+              return {
+                success: false,
+                error: `Team member not found. Available team members: ${availableMembers || 'No team members found'}`,
+              }
+            }
+
+            // Check if already a project member
+            const existingMember = await db.projectMember.findUnique({
+              where: {
+                projectId_userId: {
+                  projectId: resolvedProjectId,
+                  userId: teamMember.userId,
+                },
+              },
+            })
+
+            if (existingMember) {
+              return { success: false, error: `${teamMember.userName} is already a member of this project` }
+            }
+
+            // Add member to project
+            await db.projectMember.create({
+              data: {
+                projectId: resolvedProjectId,
+                userId: teamMember.userId,
+                userEmail: teamMember.userEmail,
+                userName: teamMember.userName,
+              },
+            })
+
+            return {
+              success: true,
+              message: `Added ${teamMember.userName} to project "${project.name}".`,
+            }
+          } catch (error: any) {
+            return { success: false, error: error.message || 'Failed to add project member' }
+          }
+        },
+      }),
+
+      removeProjectMember: tool({
+        description: 'Remove a team member from a project. Use project name or ID, and member name or email.',
+        inputSchema: z.object({
+          projectId: z.string().optional().describe('The ID of the project'),
+          projectName: z.string().optional().describe('The name of the project (if projectId not provided)'),
+          userId: z.string().optional().describe('The user ID to remove'),
+          userEmail: z.string().optional().describe('The email of the user to remove'),
+          userName: z.string().optional().describe('The name of the user to remove'),
+        }),
+        execute: async ({ projectId, projectName, userId, userEmail, userName }) => {
+          try {
+            // Resolve project
+            let resolvedProjectId = projectId
+            if (projectName && !projectId) {
+              const projects = teamContext.projects
+              const matchingProjects = projects.filter(
+                (project) => project.name.toLowerCase().includes(projectName.toLowerCase())
+              )
+
+              if (matchingProjects.length === 0) {
+                return { success: false, error: `No project found with name "${projectName}"` }
+              }
+
+              if (matchingProjects.length > 1) {
+                return {
+                  success: false,
+                  error: `Multiple projects found matching "${projectName}": ${matchingProjects.map(p => `${p.name} (${p.key})`).join(', ')}. Please be more specific.`,
+                }
+              }
+
+              resolvedProjectId = matchingProjects[0].id
+            }
+
+            if (!resolvedProjectId) {
+              return { success: false, error: 'Either projectId or projectName must be provided' }
+            }
+
+            // Verify project exists
+            const project = await db.project.findUnique({
+              where: { id: resolvedProjectId, teamId },
+            })
+
+            if (!project) {
+              return { success: false, error: 'Project not found' }
+            }
+
+            // Resolve project member
+            let projectMember = null
+            if (userId) {
+              projectMember = await db.projectMember.findFirst({
+                where: {
+                  projectId: resolvedProjectId,
+                  userId,
+                },
+              })
+            } else if (userEmail) {
+              projectMember = await db.projectMember.findFirst({
+                where: {
+                  projectId: resolvedProjectId,
+                  userEmail: {
+                    equals: userEmail,
+                    mode: 'insensitive',
+                  },
+                },
+              })
+            } else if (userName) {
+              const members = await db.projectMember.findMany({
+                where: { projectId: resolvedProjectId },
+              })
+              projectMember = members.find(m => m.userName.toLowerCase().includes(userName.toLowerCase())) || null
+            }
+
+            if (!projectMember) {
+              return { success: false, error: 'Project member not found' }
+            }
+
+            // Remove member from project
+            await db.projectMember.delete({
+              where: { id: projectMember.id },
+            })
+
+            return {
+              success: true,
+              message: `Removed ${projectMember.userName} from project "${project.name}".`,
+            }
+          } catch (error: any) {
+            return { success: false, error: error.message || 'Failed to remove project member' }
+          }
+        },
+      }),
+
+      listProjectMembers: tool({
+        description: 'List all members of a specific project. Use project name or ID.',
+        inputSchema: z.object({
+          projectId: z.string().optional().describe('The ID of the project'),
+          projectName: z.string().optional().describe('The name of the project (if projectId not provided)'),
+        }),
+        execute: async ({ projectId, projectName }) => {
+          try {
+            // Resolve project
+            let resolvedProjectId = projectId
+            if (projectName && !projectId) {
+              const projects = teamContext.projects
+              const matchingProjects = projects.filter(
+                (project) => project.name.toLowerCase().includes(projectName.toLowerCase())
+              )
+
+              if (matchingProjects.length === 0) {
+                return { success: false, error: `No project found with name "${projectName}"` }
+              }
+
+              if (matchingProjects.length > 1) {
+                return {
+                  success: false,
+                  error: `Multiple projects found matching "${projectName}": ${matchingProjects.map(p => `${p.name} (${p.key})`).join(', ')}. Please be more specific.`,
+                }
+              }
+
+              resolvedProjectId = matchingProjects[0].id
+            }
+
+            if (!resolvedProjectId) {
+              return { success: false, error: 'Either projectId or projectName must be provided' }
+            }
+
+            // Verify project exists
+            const project = await db.project.findUnique({
+              where: { id: resolvedProjectId, teamId },
+            })
+
+            if (!project) {
+              return { success: false, error: 'Project not found' }
+            }
+
+            // Get project members
+            const members = await db.projectMember.findMany({
+              where: { projectId: resolvedProjectId },
+              orderBy: { createdAt: 'asc' },
+            })
+
+            return {
+              success: true,
+              members: members.map(m => ({
+                userId: m.userId,
+                name: m.userName,
+                email: m.userEmail,
+              })),
+              projectName: project.name,
+              count: members.length,
+              message: members.length === 0
+                ? `Project "${project.name}" has no members yet.`
+                : `Project "${project.name}" has ${members.length} member${members.length !== 1 ? 's' : ''}: ${members.map(m => m.userName).join(', ')}`,
+            }
+          } catch (error: any) {
+            return { success: false, error: error.message || 'Failed to list project members' }
+          }
+        },
+      }),
+
       revokeInvitation: tool({
         description: 'Revoke or cancel a pending team invitation by email or invitation ID',
         inputSchema: z.object({

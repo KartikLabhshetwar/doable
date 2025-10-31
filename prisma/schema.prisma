@@ -11,12 +11,12 @@ datasource db {
 }
 
 model Team {
-  id             String   @id @default(cuid())
-  name           String
-  key            String   @unique // 3-letter team identifier (e.g., "ENG", "DES")
-  groqApiKey     String?  // Optional Groq API key for BYOK feature
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String
+  key        String   @unique // 3-letter team identifier (e.g., "ENG", "DES")
+  groqApiKey String? // Optional Groq API key for BYOK feature
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relations
   projects          Project[]
@@ -48,7 +48,8 @@ model Project {
   leadId String? // Clerk user ID
   lead   String? // User display name
 
-  issues Issue[]
+  issues  Issue[]
+  members ProjectMember[]
 
   @@unique([teamId, key])
   @@map("projects")
@@ -173,6 +174,23 @@ model TeamMember {
   @@map("team_members")
 }
 
+model ProjectMember {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  userId    String // Clerk user ID
+  userEmail String
+  userName  String
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
 model Invitation {
   id        String   @id @default(cuid())
   email     String
@@ -250,13 +268,13 @@ model Verification {
 }
 
 model ChatConversation {
-  id        String       @id @default(cuid())
+  id        String        @id @default(cuid())
   teamId    String
-  team      Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  userId    String       // Better Auth user ID
-  title     String?      // Auto-generated from first message
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  team      Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String // Better Auth user ID
+  title     String? // Auto-generated from first message
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
   messages  ChatMessage[]
 
   @@map("chat_conversations")
@@ -266,9 +284,9 @@ model ChatMessage {
   id             String           @id @default(cuid())
   conversationId String
   conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role           String           // user, assistant, tool
+  role           String // user, assistant, tool
   content        String           @db.Text
-  toolCalls      Json?            // Store tool call data
+  toolCalls      Json? // Store tool call data
   createdAt      DateTime         @default(now())
 
   @@map("chat_messages")
