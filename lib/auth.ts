@@ -41,6 +41,17 @@ export const auth = betterAuth({
     ].filter(Boolean) as string[]
     return origins
   },
+  advanced: {
+    useSecureCookies: process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_APP_URL?.startsWith("https"),
+    cookies: {
+      session_token: {
+        attributes: {
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_APP_URL?.startsWith("https"),
+        },
+      },
+    },
+  },
   plugins: [
     nextCookies(), // Must be last plugin
   ],
