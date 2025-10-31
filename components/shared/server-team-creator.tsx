@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Plus } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
-import { useToast } from '@/lib/hooks/use-toast'
 import { authClient } from '@/lib/auth-client'
 
 interface ServerTeamCreatorProps {
@@ -18,7 +17,6 @@ interface ServerTeamCreatorProps {
 export function ServerTeamCreator({ onTeamCreated, inDialog = false }: ServerTeamCreatorProps) {
   const [teamName, setTeamName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
-  const { toast } = useToast()
   const { data: session } = authClient.useSession()
   const user = session?.user || null
 
@@ -40,7 +38,6 @@ export function ServerTeamCreator({ onTeamCreated, inDialog = false }: ServerTea
 
       if (response.ok) {
         const team = await response.json()
-        toast.success('Team created successfully!', 'Your team has been created and you have been added as a member.')
         setTeamName('')
         onTeamCreated?.(team)
         
@@ -54,7 +51,6 @@ export function ServerTeamCreator({ onTeamCreated, inDialog = false }: ServerTea
       }
     } catch (error) {
       console.error('Error creating team:', error)
-      toast.error('Failed to create team', error instanceof Error ? error.message : 'Please try again.')
     } finally {
       setIsCreating(false)
     }

@@ -1,0 +1,243 @@
+'use client'
+
+import { useState, useMemo } from 'react'
+import { IssueWithRelations } from '@/lib/types'
+import { WorkflowState } from '@prisma/client'
+import { UserAvatar } from '@/components/shared/user-avatar'
+import { Button } from '@/components/ui/button'
+import { ChevronDown, ChevronRight, Plus, MoreVertical, X } from 'lucide-react'
+import { StatusChangeDropdown } from './status-change-dropdown'
+
+interface IssueListProps {
+  issues: IssueWithRelations[]
+  workflowStates: WorkflowState[]
+  onCreateIssue?: (workflowStateId?: string) => void
+  onIssueClick?: (issue: IssueWithRelations) => void
+  onIssueCheck?: (issueId: string, checked: boolean) => void
+  onStatusChange?: (issueId: string, workflowStateId: string) => void
+}
+
+export function IssueList({
+  issues,
+  workflowStates,
+  onCreateIssue,
+  onIssueClick,
+  onIssueCheck,
+  onStatusChange,
+}: IssueListProps) {
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
+
+  // Group issues by workflow state
+  const groupedIssues = useMemo(() => {
+    const groups: Record<string, IssueWithRelations[]> = {}
+    
+    workflowStates.forEach(state => {
+      groups[state.id] = []
+    })
+    
+    issues.forEach(issue => {
+      if (!groups[issue.workflowStateId]) {
+        groups[issue.workflowStateId] = []
+      }
+      groups[issue.workflowStateId].push(issue)
+    })
+    
+    return groups
+  }, [issues, workflowStates])
+
+  // Sort workflow states by position or name
+  const sortedWorkflowStates = useMemo(() => {
+    return [...workflowStates].sort((a, b) => {
+      if ('position' in a && 'position' in b) {
+        return (a.position as number) - (b.position as number)
+      }
+      return a.name.localeCompare(b.name)
+    })
+  }, [workflowStates])
+
+  const toggleSection = (stateId: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev)
+      if (next.has(stateId)) {
+        next.delete(stateId)
+      } else {
+        next.add(stateId)
+      }
+      return next
+    })
+  }
+
+  const formatDate = (date: Date | string) => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date
+    if (isNaN(dateObj.getTime())) return ''
+    
+    const today = new Date()
+    const isThisYear = dateObj.getFullYear() === today.getFullYear()
+    
+    if (isThisYear) {
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+      }).format(dateObj)
+    }
+    
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(dateObj)
+  }
+
+  const getIssueIdentifier = (issue: IssueWithRelations) => {
+    return `${issue.project?.key || issue.team.key}-${issue.number}`
+  }
+
+  const isCompleted = (stateType: string) => {
+    return stateType === 'completed' || stateType === 'canceled'
+  }
+
+  return (
+    <div className="space-y-1">
+      {sortedWorkflowStates.map((state) => {
+        const stateIssues = groupedIssues[state.id] || []
+        const isCollapsed = collapsedSections.has(state.id)
+        const isCanceled = state.type === 'canceled'
+        
+        if (stateIssues.length === 0 && !onCreateIssue) return null
+
+        return (
+          <div key={state.id} className="border-b border-border/50 last:border-b-0">
+            {/* Section Header */}
+            <div className="flex items-center gap-2 px-3 py-2 hover:bg-muted/30 transition-colors group">
+              <button
+                onClick={() => toggleSection(state.id)}
+                className="flex items-center gap-2 flex-1 min-w-0 text-left"
+              >
+                {isCollapsed ? (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                )}
+                
+                {isCanceled && (
+                  <div className="h-4 w-4 rounded-full border border-muted-foreground/40 flex items-center justify-center flex-shrink-0">
+                    <X className="h-2.5 w-2.5 text-muted-foreground" />
+                  </div>
+                )}
+                
+                <span className="font-medium text-sm text-foreground">
+                  {state.name}
+                </span>
+                
+                <span className="text-xs text-muted-foreground">
+                  {stateIssues.length}
+                </span>
+              </button>
+              
+              {onCreateIssue && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onCreateIssue(state.id)
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+
+            {/* Section Items */}
+            {!isCollapsed && stateIssues.length > 0 && (
+              <div className="pb-1">
+                {stateIssues.map((issue) => {
+                  const identifier = getIssueIdentifier(issue)
+                  const isIssueCompleted = isCompleted(state.type)
+                  
+                  return (
+                    <div
+                      key={issue.id}
+                      className="flex items-center gap-3 px-3 py-2 hover:bg-muted/30 transition-colors group/item cursor-pointer"
+                      onClick={() => onIssueClick?.(issue)}
+                    >
+                      {/* Left icon/ellipsis with status dropdown */}
+                      <div className="flex-shrink-0">
+                        {onStatusChange ? (
+                          <StatusChangeDropdown
+                            currentState={issue.workflowState}
+                            workflowStates={workflowStates}
+                            onStatusChange={(stateId) => {
+                              onStatusChange(issue.id, stateId)
+                            }}
+                            trigger={
+                              <button
+                                className="opacity-0 group-hover/item:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                }}
+                              >
+                                <MoreVertical className="h-4 w-4 text-muted-foreground/60" />
+                              </button>
+                            }
+                          />
+                        ) : (
+                          <MoreVertical className="h-4 w-4 text-muted-foreground/60 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                        )}
+                      </div>
+
+                      {/* Issue identifier */}
+                      <span className="text-xs font-mono text-muted-foreground flex-shrink-0">
+                        {identifier}
+                      </span>
+
+                      {/* Checkbox */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onIssueCheck?.(issue.id, !isIssueCompleted)
+                        }}
+                        className="flex-shrink-0"
+                      >
+                        {isIssueCompleted ? (
+                          <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/40 flex items-center justify-center">
+                            <X className="h-2.5 w-2.5 text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />
+                        )}
+                      </button>
+
+                      {/* Title */}
+                      <span className="flex-1 text-sm text-foreground truncate">
+                        {issue.title}
+                      </span>
+
+                      {/* Assignee avatar */}
+                      <div className="flex-shrink-0">
+                        {issue.assignee ? (
+                          <UserAvatar name={issue.assignee} size="sm" />
+                        ) : (
+                          <div className="h-5 w-5 rounded-full border border-muted-foreground/20 flex items-center justify-center">
+                            <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Date */}
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {formatDate(issue.createdAt)}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+

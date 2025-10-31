@@ -15,7 +15,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useToast } from '@/lib/hooks/use-toast'
 import { Key, Eye, EyeOff } from 'lucide-react'
 import IconKey from '@/components/ui/IconKey'
 
@@ -41,7 +40,6 @@ export function ApiKeyDialog({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [currentApiKey, setCurrentApiKey] = useState<string | null>(null)
-  const { toast } = useToast()
 
   // Load API key from localStorage when dialog opens
   useEffect(() => {
@@ -86,14 +84,11 @@ export function ApiKeyDialog({
       })
 
       if (response.ok) {
-        toast.success('API key is valid', 'Your Groq API key works correctly.')
         return true
       } else {
-        toast.error('Invalid API key', 'Please check your key and try again.')
         return false
       }
     } catch (error) {
-      toast.error('Connection failed', 'Could not test the API key.')
       return false
     } finally {
       setIsTesting(false)
@@ -114,14 +109,12 @@ export function ApiKeyDialog({
       localStorage.setItem('groq_api_key', data.apiKey)
       setCurrentApiKey(data.apiKey)
 
-      toast.success('API key saved', 'Your Groq API key has been saved locally.')
       onSuccess?.()
       onOpenChange(false)
       resetForm()
     } catch (error) {
       console.error('Error saving API key:', error)
       const errorMessage = error instanceof Error ? error.message : 'Could not save your API key.'
-      toast.error('Failed to save', errorMessage)
     } finally {
       setIsSubmitting(false)
     }
@@ -134,13 +127,11 @@ export function ApiKeyDialog({
       localStorage.removeItem('groq_api_key')
       setCurrentApiKey(null)
 
-      toast.success('API key removed', 'Your API key has been removed from local storage.')
       onSuccess?.()
       onOpenChange(false)
       resetForm()
     } catch (error) {
       console.error('Error removing API key:', error)
-      toast.error('Failed to remove', 'Could not remove your API key.')
     } finally {
       setIsSubmitting(false)
     }

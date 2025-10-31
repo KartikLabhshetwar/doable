@@ -8,18 +8,16 @@ import { IssueCard } from '@/components/issues/issue-card'
 import { IssueDialog } from '@/components/issues/issue-dialog'
 import { IssueBoard } from '@/components/issues/issue-board'
 import { IssueTable } from '@/components/issues/issue-table'
+import { IssueList } from '@/components/issues/issue-list'
 import { ViewSwitcher } from '@/components/shared/view-switcher'
 import { FilterBar } from '@/components/filters/filter-bar'
 import { CommandPalette } from '@/components/shared/command-palette'
 import { CreateIssueData, IssueFilters, IssueSort, ViewType, IssueWithRelations } from '@/lib/types'
 import { useCommandPalette, useCreateShortcut } from '@/lib/hooks/use-keyboard-shortcuts'
-import { useToast } from '@/lib/hooks/use-toast'
-import { ToastContainer } from '@/lib/hooks/use-toast'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { IssueCardSkeleton, TableSkeleton, BoardSkeleton } from '@/components/ui/skeletons'
 import { Spinner } from '@/components/ui/spinner'
-import { Plus, Search, AlertTriangle } from 'lucide-react'
-import { Input } from '@/components/ui/input'
+import { Plus, AlertTriangle, Filter } from 'lucide-react'
 import {
   Pagination,
   PaginationContent,
@@ -94,6 +92,7 @@ export default function IssuesPage() {
   const [projects, setProjects] = useState<any[]>([])
   const [workflowStates, setWorkflowStates] = useState<any[]>([])
   const [labels, setLabels] = useState<any[]>([])
+  const [teamKey, setTeamKey] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [issuesLoading, setIssuesLoading] = useState(false)
   
@@ -104,7 +103,6 @@ export default function IssuesPage() {
   const [editDialogOpenForAssign, setEditDialogOpenForAssign] = useState(false)
   const [editDialogOpenForMove, setEditDialogOpenForMove] = useState(false)
   const [currentIssue, setCurrentIssue] = useState<IssueWithRelations | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
   const [currentView, setCurrentView] = useState<ViewType>('list')
   const [filters, setFilters] = useState<IssueFilters>({})
   const [sort, setSort] = useState<IssueSort>({ field: 'createdAt', direction: 'desc' })
@@ -114,8 +112,6 @@ export default function IssuesPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
-  // Toast notifications
-  const { toasts, toast, removeToast } = useToast()
 
   // Listen for sidebar collapse state changes
   useEffect(() => {
@@ -178,7 +174,6 @@ export default function IssuesPage() {
     } catch (error) {
       console.error('Error fetching data:', error)
       setError('Failed to load data. Please try again.')
-      toast.error('Failed to load data', 'Please refresh the page and try again.')
     } finally {
       setLoading(false)
     }
@@ -234,17 +229,21 @@ export default function IssuesPage() {
       setCachedData(issuesCacheKey, data)
       // Force React to re-render by creating new array reference
       setIssues([...data])
+      
+      // Extract team key from first issue if available
+      if (data.length > 0 && data[0].team?.key && !teamKey) {
+        setTeamKey(data[0].team.key)
+      }
     } catch (error) {
       console.error('Error fetching issues:', error)
       if (!silentRefresh) {
-        toast.error('Failed to load issues', 'Please try again.')
       }
     } finally {
       if (!silentRefresh) {
         setIssuesLoading(false)
       }
     }
-  }, [teamId, filters, sort, toast])
+  }, [teamId, filters, sort])
   
   // Keep ref updated with latest fetchIssues
   useEffect(() => {
@@ -323,13 +322,11 @@ export default function IssuesPage() {
 
       if (response.ok) {
         setIssues(prev => prev.filter(i => i.id !== issueId))
-        toast.success('Issue deleted', 'The issue has been deleted successfully.')
       } else {
         throw new Error('Failed to delete issue')
       }
     } catch (error) {
       console.error('Error deleting issue:', error)
-      toast.error('Failed to delete issue', 'Please try again.')
     }
   }
 
@@ -352,7 +349,6 @@ export default function IssuesPage() {
         // Clear issues cache to force refresh
         cache.delete(cacheKeys.issues)
         
-        toast.success('Issue updated', 'The issue has been updated successfully.')
       } else {
         const errorData = await response.json()
         console.error('API Error:', errorData)
@@ -360,7 +356,6 @@ export default function IssuesPage() {
       }
     } catch (error) {
       console.error('Error updating issue:', error)
-      toast.error('Failed to update issue', 'Please try again.')
       throw error
     }
   }
@@ -382,7 +377,6 @@ export default function IssuesPage() {
         // Clear issues cache to force refresh
         cache.delete(cacheKeys.issues)
         
-        toast.success('Issue created', 'Your issue has been created successfully.')
       } else {
         const errorData = await response.json()
         console.error('API Error:', errorData)
@@ -390,41 +384,20 @@ export default function IssuesPage() {
       }
     } catch (error) {
       console.error('Error creating issue:', error)
-      toast.error('Failed to create issue', 'Please try again.')
       throw error
     }
   }
 
   const handleFiltersChange = (newFilters: IssueFilters) => {
     setFilters(newFilters)
-    // Also update search query if it's in the filters
-    if (newFilters.search !== undefined) {
-      setSearchQuery(newFilters.search)
-    }
-  }
-
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value)
-    setFilters(prev => ({
-      ...prev,
-      search: value
-    }))
   }
 
   const handleSort = (field: string, direction: 'asc' | 'desc') => {
     setSort({ field: field as any, direction })
   }
 
-  // Apply client-side search filtering to API-filtered results
-  const filteredIssues = issues.filter(issue => {
-    // If there's a search query, apply client-side search filtering
-    if (searchQuery) {
-      return issue.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             issue.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    }
-    // Otherwise, return all issues (they're already filtered by API)
-    return true
-  })
+  // Filtered issues (already filtered by API via filters)
+  const filteredIssues = issues
 
   // Pagination logic
   const totalPages = Math.ceil(filteredIssues.length / itemsPerPage)
@@ -470,7 +443,7 @@ export default function IssuesPage() {
   useEffect(() => {
     // Reset to page 1 when filters or search change
     setCurrentPage(1)
-  }, [filters, searchQuery])
+  }, [filters])
 
   if (error) {
     return (
@@ -503,50 +476,32 @@ export default function IssuesPage() {
           <h1 className="text-2xl font-semibold">Issues</h1>
           <p className="text-muted-foreground text-sm">Manage and track your team&apos;s issues</p>
         </div>
-        <Button 
-          onClick={() => setCreateDialogOpen(true)}
-          className="font-medium"
-          disabled={loading}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Issue
-        </Button>
+        <div className="flex items-center gap-2">
+          <FilterBar
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+            projects={projects}
+            workflowStates={workflowStates}
+            labels={labels}
+          />
+          <Button 
+            onClick={() => setCreateDialogOpen(true)}
+            className="font-medium"
+            disabled={loading}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Issue
+          </Button>
+        </div>
       </div>
 
-      {/* Search and Filters */}
-      <Card className="border-border/50">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-xl font-medium">Search & Filter</CardTitle>
-            <ViewSwitcher
-              currentView={currentView}
-              onViewChange={setCurrentView}
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search issues..."
-                  value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pl-10 h-11"
-                />
-              </div>
-            </div>
-            <FilterBar
-              filters={filters}
-              onFiltersChange={handleFiltersChange}
-              projects={projects}
-              workflowStates={workflowStates}
-              labels={labels}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* View Switcher */}
+      <div className="flex items-center justify-end">
+        <ViewSwitcher
+          currentView={currentView}
+          onViewChange={setCurrentView}
+        />
+      </div>
 
         {/* Issues Display */}
         <div className="space-y-6">
@@ -561,7 +516,7 @@ export default function IssuesPage() {
           <Card className="border-border/50">
             <CardContent className="text-center py-16">
               <div className="text-muted-foreground">
-                {searchQuery || Object.values(filters).some(value => 
+                {Object.values(filters).some(value => 
                   Array.isArray(value) ? value.length > 0 : value !== '' && value !== undefined
                 ) ? (
                   <>
@@ -571,7 +526,6 @@ export default function IssuesPage() {
                       variant="outline"
                       className="font-medium" 
                       onClick={() => {
-                        setSearchQuery('')
                         setFilters({})
                       }}
                     >
@@ -611,22 +565,83 @@ export default function IssuesPage() {
             ) : (
               <>
                 {currentView === 'list' && (
-                  <div className="grid gap-4">
-                    {paginatedIssues.map((issue) => (
-                      <IssueCard
-                        key={issue.id}
-                        issue={issue as any}
-                        onClick={() => {
-                          handleIssueView(issue as any)
+                  <Card className="border-border/50">
+                    <CardContent className="p-0">
+                      <IssueList
+                        issues={filteredIssues as any}
+                        workflowStates={workflowStates}
+                        onCreateIssue={(workflowStateId) => {
+                          setCurrentIssue(null)
+                          setCreateDialogOpen(true)
                         }}
-                        onView={handleIssueView}
-                        onEdit={handleIssueEdit}
-                        onAssign={handleIssueAssign}
-                        onMove={handleIssueMove}
-                        onDelete={handleIssueDelete}
+                        onIssueClick={(issue) => {
+                          handleIssueView(issue)
+                        }}
+                        onIssueCheck={async (issueId, checked) => {
+                          const issue = issues.find(i => i.id === issueId)
+                          if (!issue) return
+                          
+                          // Find the appropriate workflow state
+                          const targetState = workflowStates.find(
+                            state => state.type === (checked ? 'completed' : 'unstarted')
+                          )
+                          
+                          if (targetState) {
+                            try {
+                              // Set current issue for the update handler
+                              setCurrentIssue(issue)
+                              
+                              const response = await fetch(`/api/teams/${teamId}/issues/${issueId}`, {
+                                method: 'PATCH',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                  workflowStateId: targetState.id
+                                }),
+                              })
+
+                              if (response.ok) {
+                                const updatedIssue = await response.json()
+                                setIssues(prev => prev.map(i => i.id === issueId ? updatedIssue : i))
+                                cache.delete(cacheKeys.issues)
+                              }
+                            } catch (error) {
+                              console.error('Error updating issue:', error)
+                            } finally {
+                              setCurrentIssue(null)
+                            }
+                          }
+                        }}
+                        onStatusChange={async (issueId, workflowStateId) => {
+                          const issue = issues.find(i => i.id === issueId)
+                          if (!issue) return
+                          
+                          try {
+                            const response = await fetch(`/api/teams/${teamId}/issues/${issueId}`, {
+                              method: 'PATCH',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                workflowStateId
+                              }),
+                            })
+
+                            if (response.ok) {
+                              const updatedIssue = await response.json()
+                              setIssues(prev => prev.map(i => i.id === issueId ? updatedIssue : i))
+                              cache.delete(cacheKeys.issues)
+                            } else {
+                              throw new Error('Failed to update issue')
+                            }
+                          } catch (error) {
+                            console.error('Error updating issue status:', error)
+                          }
+                        }}
                       />
-                    ))}
-                  </div>
+                    </CardContent>
+                  </Card>
                 )}
 
                 {currentView === 'board' && (
@@ -652,6 +667,15 @@ export default function IssuesPage() {
                       onIssueAssign={handleIssueAssign}
                       onIssueMove={handleIssueMove}
                       onIssueDelete={handleIssueDelete}
+                      onCreateIssue={(workflowStateId) => {
+                        setCurrentIssue(null)
+                        // Set the workflow state in the dialog
+                        setCreateDialogOpen(true)
+                        // Store the workflow state ID to use in the dialog
+                        if (typeof window !== 'undefined') {
+                          sessionStorage.setItem('createIssueWorkflowStateId', workflowStateId)
+                        }
+                      }}
                       className="h-full"
                       sidebarCollapsed={sidebarCollapsed}
                     />
@@ -676,8 +700,8 @@ export default function IssuesPage() {
           </>
         )}
 
-        {/* Pagination */}
-        {filteredIssues.length > itemsPerPage && (
+        {/* Pagination - Only show for non-list views */}
+        {currentView !== 'list' && filteredIssues.length > itemsPerPage && (
           <Pagination>
             <PaginationContent>
               <PaginationItem>
@@ -835,8 +859,6 @@ export default function IssuesPage() {
         }}
       />
 
-      {/* Toast Notifications */}
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
       </div>
     </ErrorBoundary>
   )

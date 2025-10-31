@@ -160,25 +160,10 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
   // Extract labelIds and exclude from main data
   const { labelIds, projectId, ...issueData } = data
 
-  // Parallelize: verify project and get last issue number concurrently
-  const [project, lastIssue] = await Promise.all([
-    projectId ? db.project.findFirst({ where: { id: projectId, teamId }, select: { id: true } }) : Promise.resolve(null),
-    projectId
-      ? db.issue.findFirst({
-          where: { teamId, projectId },
-          orderBy: { number: 'desc' },
-          select: { number: true },
-        })
-      : db.issue.findFirst({
-          where: { teamId, projectId: null },
-          orderBy: { number: 'desc' },
-          select: { number: true },
-        }),
-  ])
+  // Verify project if provided
+  const project = projectId ? await db.project.findFirst({ where: { id: projectId, teamId }, select: { id: true } }) : null
 
-  const nextNumber = (lastIssue?.number || 0) + 1
-
-  // Prepare issue data
+  // Prepare issue data (without number first, will be set in transaction)
   const issueDataToCreate: any = {
     title: issueData.title,
     description: issueData.description,
@@ -190,7 +175,6 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
     teamId,
     creatorId,
     creator: creatorName,
-    number: nextNumber,
     ...(project && projectId ? { projectId } : {}),
   }
 
@@ -230,11 +214,23 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
     },
   }
 
-  // Use transaction to create issue and labels atomically, avoiding refetch
+  // Use transaction to generate number atomically and create issue, preventing race conditions
   if (labelIds?.length) {
     return await db.$transaction(async (tx) => {
+      // Get last issue number for the entire team (not per project) within transaction
+      const lastIssue = await tx.issue.findFirst({
+        where: { teamId },
+        orderBy: { number: 'desc' },
+        select: { number: true },
+      })
+      
+      const nextNumber = (lastIssue?.number || 0) + 1
+
       const issue = await tx.issue.create({
-        data: issueDataToCreate,
+        data: {
+          ...issueDataToCreate,
+          number: nextNumber,
+        },
         select: selectConfig,
       })
 
@@ -253,10 +249,24 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
     })
   }
 
-  // Create issue without labels
-  return await db.issue.create({
-    data: issueDataToCreate,
-    select: selectConfig,
+  // Create issue without labels, but still in transaction to prevent race conditions
+  return await db.$transaction(async (tx) => {
+    // Get last issue number for the entire team (not per project) within transaction
+    const lastIssue = await tx.issue.findFirst({
+      where: { teamId },
+      orderBy: { number: 'desc' },
+      select: { number: true },
+    })
+    
+    const nextNumber = (lastIssue?.number || 0) + 1
+
+    return await tx.issue.create({
+      data: {
+        ...issueDataToCreate,
+        number: nextNumber,
+      },
+      select: selectConfig,
+    })
   })
 }
 
@@ -272,18 +282,12 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
 
   // Handle project change - renumber the issue
   if (normalizedProjectId !== undefined && normalizedProjectId !== currentIssue?.projectId) {
-    // Get the last issue number for the new project
-    const lastIssue = normalizedProjectId 
-      ? await db.issue.findFirst({
-          where: { teamId, projectId: normalizedProjectId },
-          orderBy: { number: 'desc' },
-          select: { number: true },
-        })
-      : await db.issue.findFirst({
-          where: { teamId, projectId: null },
-          orderBy: { number: 'desc' },
-          select: { number: true },
-        })
+    // Get the last issue number for the entire team (not per project)
+    const lastIssue = await db.issue.findFirst({
+      where: { teamId },
+      orderBy: { number: 'desc' },
+      select: { number: true },
+    })
     
     const nextNumber = (lastIssue?.number || 0) + 1
     data.number = nextNumber

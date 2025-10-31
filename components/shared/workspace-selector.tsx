@@ -23,8 +23,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { useToast } from '@/lib/hooks/use-toast'
-import { ToastContainer } from '@/lib/hooks/use-toast'
 
 interface WorkspaceSelectorProps {
   currentTeamId: string
@@ -39,7 +37,6 @@ export function WorkspaceSelector({ currentTeamId, currentTeamName }: WorkspaceS
   const [teamToDelete, setTeamToDelete] = useState<any>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [displayTeamName, setDisplayTeamName] = useState(currentTeamName)
-  const { toasts, toast, removeToast } = useToast()
 
   // Update displayed team name when prop changes
   useEffect(() => {
@@ -93,7 +90,6 @@ export function WorkspaceSelector({ currentTeamId, currentTeamName }: WorkspaceS
 
       if (response.ok) {
         // Show success toast
-        toast.success('Workspace deleted', 'The workspace has been deleted successfully.')
         
         // If the deleted team was the current one, redirect immediately
         if (teamToDelete.id === currentTeamId) {
@@ -121,11 +117,9 @@ export function WorkspaceSelector({ currentTeamId, currentTeamName }: WorkspaceS
       } else {
         const error = await response.json()
         console.error('Error deleting team:', error)
-        toast.error('Failed to delete workspace', error.error || 'Please try again.')
       }
     } catch (error) {
       console.error('Error deleting team:', error)
-      toast.error('Failed to delete workspace', 'An unexpected error occurred.')
     } finally {
       setIsDeleting(false)
       setDeleteDialogOpen(false)
@@ -210,7 +204,6 @@ export function WorkspaceSelector({ currentTeamId, currentTeamName }: WorkspaceS
       </AlertDialog>
 
       {/* Toast Notifications */}
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   )
 }

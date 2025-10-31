@@ -7,14 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ProjectCard } from '@/components/projects/project-card'
 import { ProjectTable } from '@/components/projects/project-table'
 import { ProjectDialog } from '@/components/projects/project-dialog'
+import { ProjectList } from '@/components/projects/project-list'
 import { ViewSwitcher } from '@/components/shared/view-switcher'
 import { CreateProjectData, UpdateProjectData, ProjectWithRelations } from '@/lib/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { ProjectCardSkeleton } from '@/components/ui/skeletons'
-import { useToast } from '@/lib/hooks/use-toast'
-import { ToastContainer } from '@/lib/hooks/use-toast'
-import { Plus, Search, Filter, AlertTriangle, X } from 'lucide-react'
-import { Input } from '@/components/ui/input'
+import { Plus, Filter, AlertTriangle, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
   Pagination,
@@ -45,11 +43,11 @@ export default function ProjectsPage() {
   const teamId = params.teamId
 
   const [projects, setProjects] = useState<ProjectWithRelations[]>([])
+  const [teamKey, setTeamKey] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [currentProject, setCurrentProject] = useState<ProjectWithRelations | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [currentView, setCurrentView] = useState<'list' | 'table'>('list')
   const [filters, setFilters] = useState<ProjectFilters>({
@@ -61,8 +59,6 @@ export default function ProjectsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(12)
 
-  // Toast notifications
-  const { toasts, toast, removeToast } = useToast()
 
   // Use ref to store latest fetchProjects to avoid stale closure issues
   const fetchProjectsRef = useRef<((silentRefresh?: boolean) => Promise<void>) | null>(null)
@@ -85,6 +81,11 @@ export default function ProjectsPage() {
       const data = await response.json()
       // Force React to re-render by creating new array reference
       setProjects([...data])
+      
+      // Extract team key from first project if available
+      if (data.length > 0 && data[0].team?.key && !teamKey) {
+        setTeamKey(data[0].team.key)
+      }
     } catch (error) {
       console.error('Error fetching projects:', error)
       if (!silentRefresh) {
@@ -137,13 +138,11 @@ export default function ProjectsPage() {
 
       if (response.ok) {
         setProjects(prev => prev.filter(p => p.id !== projectId))
-        toast.success('Project deleted', 'The project has been deleted successfully.')
       } else {
         throw new Error('Failed to delete project')
       }
     } catch (error) {
       console.error('Error deleting project:', error)
-      toast.error('Failed to delete project', 'Please try again.')
     }
   }
 
@@ -169,13 +168,11 @@ export default function ProjectsPage() {
       if (response.ok) {
         const newProject = await response.json()
         setProjects(prev => [newProject, ...prev])
-        toast.success('Project duplicated', 'The project has been duplicated successfully.')
       } else {
         throw new Error('Failed to duplicate project')
       }
     } catch (error) {
       console.error('Error duplicating project:', error)
-      toast.error('Failed to duplicate project', 'Please try again.')
     }
   }
 
@@ -194,13 +191,11 @@ export default function ProjectsPage() {
       if (response.ok) {
         const updatedProject = await response.json()
         setProjects(prev => prev.map(p => p.id === currentProject.id ? updatedProject : p))
-        toast.success('Project updated', 'The project has been updated successfully.')
       } else {
         throw new Error('Failed to update project')
       }
     } catch (error) {
       console.error('Error updating project:', error)
-      toast.error('Failed to update project', 'Please try again.')
       throw error
     }
   }
@@ -223,13 +218,11 @@ export default function ProjectsPage() {
               : p
           )
         )
-        toast.success('Project archived', 'The project has been archived successfully.')
       } else {
         throw new Error('Failed to archive project')
       }
     } catch (error) {
       console.error('Error archiving project:', error)
-      toast.error('Failed to archive project', 'Please try again.')
     }
   }
 
@@ -246,13 +239,11 @@ export default function ProjectsPage() {
       if (response.ok) {
         const newProject = await response.json()
         setProjects(prev => [newProject, ...prev])
-        toast.success('Project created', 'Your project has been created successfully.')
       } else {
         throw new Error('Failed to create project')
       }
     } catch (error) {
       console.error('Error creating project:', error)
-      toast.error('Failed to create project', 'Please try again.')
       throw error
     }
   }
@@ -278,12 +269,11 @@ export default function ProjectsPage() {
       lead: [],
       search: ''
     })
-    setSearchQuery('')
   }
 
   const getActiveFilterCount = () => {
-    return Object.values(filters).filter(value => 
-      Array.isArray(value) ? value.length > 0 : value !== '' && value !== undefined
+    return Object.entries(filters).filter(([key, value]) => 
+      key !== 'search' && (Array.isArray(value) ? value.length > 0 : value !== '' && value !== undefined)
     ).length
   }
 
@@ -294,11 +284,8 @@ export default function ProjectsPage() {
 
   // Filter projects based on current filters
   const filteredProjects = projects.filter(project => {
-    // Search filter
-    const searchMatch = !filters.search || 
-      project.name.toLowerCase().includes(filters.search.toLowerCase()) ||
-      project.key.toLowerCase().includes(filters.search.toLowerCase()) ||
-      project.description?.toLowerCase().includes(filters.search.toLowerCase())
+    // Search filter removed
+    const searchMatch = true
 
     // Status filter
     const statusMatch = !filters.status || filters.status.length === 0 || 
@@ -388,153 +375,87 @@ export default function ProjectsPage() {
           <h1 className="text-2xl font-semibold">Projects</h1>
           <p className="text-muted-foreground text-sm">Manage your team&apos;s projects</p>
         </div>
-        <Button 
-          onClick={() => setCreateDialogOpen(true)}
-          className="font-medium"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Project
-        </Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="font-medium">
+                <Filter className="h-4 w-4 mr-2" />
+                Filters
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="ml-2 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center">
+                    {getActiveFilterCount()}
+                  </Badge>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+              {['active', 'completed', 'canceled'].map((status) => (
+                <DropdownMenuCheckboxItem
+                  key={status}
+                  checked={filters.status?.includes(status) || false}
+                  onCheckedChange={(checked) => {
+                    const currentStatuses = filters.status || []
+                    const newStatuses = checked
+                      ? [...currentStatuses, status]
+                      : currentStatuses.filter(s => s !== status)
+                    updateFilter('status', newStatuses)
+                  }}
+                >
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </DropdownMenuCheckboxItem>
+              ))}
+
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Filter by Lead</DropdownMenuLabel>
+              {uniqueLeads.map((lead) => (
+                <DropdownMenuCheckboxItem
+                  key={lead}
+                  checked={filters.lead?.includes(lead) || false}
+                  onCheckedChange={(checked) => {
+                    const currentLeads = filters.lead || []
+                    const newLeads = checked
+                      ? [...currentLeads, lead]
+                      : currentLeads.filter(l => l !== lead)
+                    updateFilter('lead', newLeads)
+                  }}
+                >
+                  {lead}
+                </DropdownMenuCheckboxItem>
+              ))}
+
+              {hasActiveFilters && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                    checked={false}
+                    onCheckedChange={clearAllFilters}
+                    className="text-red-600 focus:text-red-600"
+                  >
+                    Clear all filters
+                  </DropdownMenuCheckboxItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button 
+            onClick={() => setCreateDialogOpen(true)}
+            className="font-medium"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Project
+          </Button>
+        </div>
       </div>
 
-      {/* Search and Filters */}
-      <Card className="border-border/50">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-xl font-medium">Search & Filter</CardTitle>
-            <ViewSwitcher
-              currentView={currentView}
-              onViewChange={(view) => setCurrentView(view as 'list' | 'table')}
-              views={['list', 'table']}
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="space-y-4">
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search projects..."
-                    value={filters.search || ''}
-                    onChange={(e) => updateFilter('search', e.target.value)}
-                    className="pl-10 h-11"
-                  />
-                </div>
-              </div>
-              <DropdownMenu open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="font-medium">
-                    <Filter className="h-4 w-4 mr-2" />
-                    Filters
-                    {hasActiveFilters && (
-                      <Badge variant="secondary" className="ml-2 h-5 w-5 rounded-full p-0 text-xs">
-                        {getActiveFilterCount()}
-                      </Badge>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64">
-                  <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
-                  {['active', 'completed', 'canceled'].map((status) => (
-                    <DropdownMenuCheckboxItem
-                      key={status}
-                      checked={filters.status?.includes(status) || false}
-                      onCheckedChange={(checked) => {
-                        const currentStatuses = filters.status || []
-                        const newStatuses = checked
-                          ? [...currentStatuses, status]
-                          : currentStatuses.filter(s => s !== status)
-                        updateFilter('status', newStatuses)
-                      }}
-                    >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Filter by Lead</DropdownMenuLabel>
-                  {uniqueLeads.map((lead) => (
-                    <DropdownMenuCheckboxItem
-                      key={lead}
-                      checked={filters.lead?.includes(lead) || false}
-                      onCheckedChange={(checked) => {
-                        const currentLeads = filters.lead || []
-                        const newLeads = checked
-                          ? [...currentLeads, lead]
-                          : currentLeads.filter(l => l !== lead)
-                        updateFilter('lead', newLeads)
-                      }}
-                    >
-                      {lead}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-
-                  {hasActiveFilters && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuCheckboxItem
-                        checked={false}
-                        onCheckedChange={clearAllFilters}
-                        className="text-red-600 focus:text-red-600"
-                      >
-                        Clear all filters
-                      </DropdownMenuCheckboxItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Active filter badges */}
-            {hasActiveFilters && (
-              <>
-                <div className="flex items-center gap-1 flex-wrap flex-1">
-                  {filters.status?.map((status) => (
-                    <Badge key={status} variant="secondary" className="text-xs">
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                        onClick={() => clearFilter('status')}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </Badge>
-                  ))}
-                  
-                  {filters.lead?.map((lead) => (
-                    <Badge key={lead} variant="secondary" className="text-xs">
-                      {lead}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                        onClick={() => clearFilter('lead')}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </Badge>
-                  ))}
-                </div>
-
-                {/* Clear Filters Button */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearAllFilters}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                >
-                  <Filter className="h-4 w-4 mr-2" />
-                  Clear
-                </Button>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* View Switcher */}
+      <div className="flex items-center justify-end">
+        <ViewSwitcher
+          currentView={currentView}
+          onViewChange={(view) => setCurrentView(view as 'list' | 'table')}
+          views={['list', 'table']}
+        />
+      </div>
 
       {/* Projects Grid */}
       <div className="space-y-6">
@@ -542,7 +463,7 @@ export default function ProjectsPage() {
           <Card className="border-border/50">
             <CardContent className="text-center py-16">
               <div className="text-muted-foreground">
-                {hasActiveFilters || filters.search ? (
+                {hasActiveFilters ? (
                   <>
                     <p className="text-xl font-medium text-foreground mb-2">No projects found</p>
                     <p className="text-body-medium mb-4">Try adjusting your search terms or filters</p>
@@ -581,18 +502,48 @@ export default function ProjectsPage() {
             ) : (
               <>
                 {currentView === 'list' && (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {paginatedProjects.map((project) => (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        onEdit={handleProjectEdit}
-                        onDelete={handleProjectDelete}
-                        onDuplicate={handleProjectDuplicate}
-                        onArchive={handleProjectArchive}
+                  <Card className="border-border/50">
+                    <CardContent className="p-0">
+                      <ProjectList
+                        projects={filteredProjects}
+                        onCreateProject={(status) => {
+                          setCurrentProject(null)
+                          setCreateDialogOpen(true)
+                        }}
+                        onProjectClick={(project) => {
+                          handleProjectEdit(project)
+                        }}
+                        onProjectCheck={async (projectId, checked) => {
+                          const project = projects.find(p => p.id === projectId)
+                          if (!project) return
+                          
+                          try {
+                            // Set current project for the update handler
+                            setCurrentProject(project)
+                            
+                            const response = await fetch(`/api/teams/${teamId}/projects/${projectId}`, {
+                              method: 'PATCH',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                status: checked ? 'completed' : 'active'
+                              }),
+                            })
+
+                            if (response.ok) {
+                              const updatedProject = await response.json()
+                              setProjects(prev => prev.map(p => p.id === projectId ? updatedProject : p))
+                            }
+                          } catch (error) {
+                            console.error('Error updating project:', error)
+                          } finally {
+                            setCurrentProject(null)
+                          }
+                        }}
                       />
-                    ))}
-                  </div>
+                    </CardContent>
+                  </Card>
                 )}
 
                 {currentView === 'table' && (
@@ -618,8 +569,8 @@ export default function ProjectsPage() {
           </>
         )}
 
-        {/* Pagination */}
-        {filteredProjects.length > itemsPerPage && (
+        {/* Pagination - Only show for table view */}
+        {currentView === 'table' && filteredProjects.length > itemsPerPage && (
           <Pagination>
             <PaginationContent>
               <PaginationItem>
@@ -701,8 +652,6 @@ export default function ProjectsPage() {
         teamId={teamId}
       />
 
-      {/* Toast Notifications */}
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
       </div>
     </ErrorBoundary>
   )

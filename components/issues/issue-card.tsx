@@ -3,7 +3,7 @@ import { IssueWithRelations } from '@/lib/types'
 import { UserAvatar } from '@/components/shared/user-avatar'
 import { Card } from '@/components/ui/card'
 import { ActionsMenu, issueActions } from '@/components/shared/actions-menu'
-import { PriorityIcon } from '@/components/shared/priority-icon'
+import { Circle, X } from 'lucide-react'
 
 interface IssueCardProps {
   issue: IssueWithRelations
@@ -28,82 +28,76 @@ export function IssueCard({
   className, 
   isDragging 
 }: IssueCardProps) {
+  // Determine status indicator based on workflow state type
+  const getStatusIcon = () => {
+    const stateType = issue.workflowState.type.toLowerCase()
+    if (stateType === 'canceled' || stateType === 'completed') {
+      return <X className="h-3.5 w-3.5 text-muted-foreground" />
+    } else if (stateType === 'unstarted') {
+      return <Circle className="h-3.5 w-3.5 text-muted-foreground/40 stroke-2" />
+    } else {
+      return <Circle className="h-3.5 w-3.5 text-muted-foreground/40 stroke-2" />
+    }
+  }
+
+  const issueId = `${issue.project?.key || issue.team.key}-${issue.number}`
+  const assigneeInitials = issue.assignee
+    ?.split(' ')
+    .map(word => word[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || ''
+
   return (
     <Card
       className={cn(
-        'p-4 cursor-pointer transition-all hover:bg-muted/50 border-border/50',
+        'p-3 cursor-pointer transition-all hover:shadow-sm border-border/40 bg-card/80 backdrop-blur-sm',
         isDragging && 'opacity-50',
         className
       )}
       onClick={onClick}
     >
-      <div className="space-y-3">
-        {/* Header with ID and Status */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center flex-shrink-0">
-              <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
-            </div>
-            <span className="font-mono text-sm text-muted-foreground">
-              {issue.project?.key || issue.team.key}-{issue.number}
-            </span>
-            {issue.project && (
-              <span className="text-xs px-2 py-0.5 rounded-md" style={{ 
-                backgroundColor: `${issue.project.color || '#6366f1'}20`,
-                color: issue.project.color || '#6366f1'
-              }}>
-                {issue.project.key}
-              </span>
-            )}
-          </div>
-          
-          {/* Status Badge */}
-          <div 
-            className="text-xs px-2 py-1 rounded text-white font-medium flex-shrink-0"
-            style={{ backgroundColor: issue.workflowState.color }}
-          >
-            {issue.workflowState.name}
-          </div>
-        </div>
-
-        {/* Title */}
-        <h3 className="font-medium text-foreground text-sm leading-tight line-clamp-2">
-          {issue.title}
-        </h3>
-
-        {/* Priority */}
-        <div className="flex items-center gap-2">
-          <PriorityIcon priority={issue.priority as any} showLabel={true} />
-        </div>
-
-        {/* Footer with assignee and actions */}
+      <div className="space-y-2.5">
+        {/* Issue ID */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {issue.assignee && (
-              <div className="w-5 h-5 rounded-full bg-pink-500 flex items-center justify-center text-xs text-white font-medium">
-                {issue.assignee.charAt(0).toUpperCase()}
-              </div>
-            )}
+          <span className="font-mono text-xs font-medium text-muted-foreground">
+            {issueId}
+          </span>
+          {issue.assignee && (
+            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-[10px] text-white font-medium flex-shrink-0">
+              {assigneeInitials.slice(0, 2)}
+            </div>
+          )}
+        </div>
+
+        {/* Title with status indicator */}
+        <div className="flex items-start gap-2">
+          <div className="flex-shrink-0 mt-0.5">
+            {getStatusIcon()}
           </div>
-          
-          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-            <ActionsMenu
-              actions={[
-                issueActions.view(() => onView?.(issue)),
-                issueActions.edit(() => onEdit?.(issue)),
-                issueActions.assign(() => onAssign?.(issue)),
-                issueActions.move(() => onMove?.(issue)),
-                issueActions.delete(() => onDelete?.(issue.id)),
-              ]}
-              trigger={
-                <button
-                  className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted/50 transition-colors"
-                >
-                  <span className="text-xs text-muted-foreground">⋯</span>
-                </button>
-              }
-            />
-          </div>
+          <h3 className="font-normal text-sm text-foreground leading-snug line-clamp-2 flex-1">
+            {issue.title}
+          </h3>
+        </div>
+
+        {/* Footer with actions menu */}
+        <div className="flex items-center justify-end pt-1" onClick={(e) => e.stopPropagation()}>
+          <ActionsMenu
+            actions={[
+              issueActions.view(() => onView?.(issue)),
+              issueActions.edit(() => onEdit?.(issue)),
+              issueActions.assign(() => onAssign?.(issue)),
+              issueActions.move(() => onMove?.(issue)),
+              issueActions.delete(() => onDelete?.(issue.id)),
+            ]}
+            trigger={
+              <button
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted/70 transition-colors text-muted-foreground/60 hover:text-muted-foreground"
+              >
+                <span className="text-xs">⋯</span>
+              </button>
+            }
+          />
         </div>
       </div>
     </Card>

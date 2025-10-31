@@ -22,8 +22,6 @@ import {
 } from '@/components/ui/select'
 import { UserAvatar } from '@/components/shared/user-avatar'
 import { Mail, Trash2 } from 'lucide-react'
-import { useToast } from '@/lib/hooks/use-toast'
-import { ToastContainer } from '@/lib/hooks/use-toast'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import IconUsers from '@/components/ui/IconUsers'
@@ -67,7 +65,6 @@ export default function PeoplePage() {
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
   const [memberToRemove, setMemberToRemove] = useState<{ id: string; name: string } | null>(null)
 
-  const { toasts, toast, removeToast } = useToast()
 
   // Use ref to store latest fetchData to avoid stale closure issues
   const fetchDataRef = useRef<((silentRefresh?: boolean) => Promise<void>) | null>(null)
@@ -133,7 +130,6 @@ export default function PeoplePage() {
     } catch (error) {
       console.error('Error fetching data:', error)
       if (!silentRefresh) {
-        toast.error('Failed to load data', 'Please try again.')
       }
     } finally {
       if (!silentRefresh) {
@@ -172,7 +168,6 @@ export default function PeoplePage() {
 
   const handleInvite = async () => {
     if (!inviteEmail || !inviteEmail.includes('@')) {
-      toast.error('Invalid email', 'Please enter a valid email address.')
       return
     }
 
@@ -190,7 +185,6 @@ export default function PeoplePage() {
       })
 
       if (response.ok) {
-        toast.success('Invitation sent', 'The invitation has been sent successfully.')
         setInviteEmail('')
         setInviteRole('developer')
         setInviteDialogOpen(false)
@@ -201,7 +195,6 @@ export default function PeoplePage() {
       }
     } catch (error: any) {
       console.error('Error sending invitation:', error)
-      toast.error('Failed to send invitation', error.message || 'Please try again.')
     } finally {
       setIsSubmitting(false)
     }
@@ -214,13 +207,11 @@ export default function PeoplePage() {
       })
 
       if (response.ok) {
-        toast.success('Invitation resent', 'The invitation has been resent successfully.')
       } else {
         throw new Error('Failed to resend invitation')
       }
     } catch (error) {
       console.error('Error resending invitation:', error)
-      toast.error('Failed to resend invitation', 'Please try again.')
     }
   }
 
@@ -231,14 +222,12 @@ export default function PeoplePage() {
       })
 
       if (response.ok) {
-        toast.success('Invitation removed', 'The invitation has been removed successfully.')
         await fetchData()
       } else {
         throw new Error('Failed to remove invitation')
       }
     } catch (error) {
       console.error('Error removing invitation:', error)
-      toast.error('Failed to remove invitation', 'Please try again.')
     }
   }
 
@@ -252,7 +241,6 @@ export default function PeoplePage() {
         })
 
         if (response.ok) {
-          toast.success('Member removed', 'The team member has been removed successfully.')
           setRemoveDialogOpen(false)
           setMemberToRemove(null)
           await fetchData()
@@ -262,7 +250,6 @@ export default function PeoplePage() {
         }
       } catch (error: any) {
         console.error('Error removing member:', error)
-        toast.error('Failed to remove member', error.message || 'Please try again.')
       }
     }
     
@@ -487,7 +474,6 @@ export default function PeoplePage() {
         </DialogContent>
       </Dialog>
 
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   )
 }
