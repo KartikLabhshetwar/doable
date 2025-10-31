@@ -42,7 +42,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ className = '' }) => {
       
       {/* Demo Video Section */}
       <DemoVideoSection 
-        videoSrc="/doable.mp4"
+        videoSrc="doable"
         title="See Doable in Action"
         description="Watch how teams use Doable to manage tasks and collaborate effectively."
       />

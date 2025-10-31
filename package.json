@@ -10,7 +10,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "check:videos": "tsx scripts/check-cloudinary-videos.ts"
   },
   "dependencies": {
     "@ai-sdk/groq": "^2.0.25",
@@ -35,6 +36,7 @@
     "ai": "^5.0.81",
     "better-auth": "^1.3.32",
     "class-variance-authority": "^0.7.1",
+    "cloudinary": "^2.8.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "cobe": "^0.6.5",

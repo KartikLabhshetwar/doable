@@ -1,5 +1,6 @@
 "use client";
 import React, { useRef, useState, useEffect } from 'react';
+import { getVideoUrl } from '@/lib/cloudinary';
 
 interface FeatureCard {
   title: string;
@@ -11,27 +12,27 @@ const features: FeatureCard[] = [
   {
     title: "Doable AI",
     description: "Create an issue using Doable AI. Our AI assistant understands context and helps you get things done faster.",
-    videoSrc: "/feature-1-doable.mp4",
+    videoSrc: "feature-1-doable",
   },
   {
     title: "Assign issues to team members",
     description: "You can list all issues and assign them to team members.",
-    videoSrc: "/feature-2-doable.mp4",
+    videoSrc: "feature-2-doable",
   },
   {
     title: "Delete issues",
     description: "You can delete issues using Doable AI.",
-    videoSrc: "/feature-3-doable.mp4",
+    videoSrc: "feature-3-doable",
   },
   {
     title: "Create projects",
     description: "You can create your projects using Doable AI",
-    videoSrc: "/feature-5-doable.mp4",
+    videoSrc: "feature-5-doable",
   },
   {
     title: "Invite team members",
     description: "You can invite team members using Doable AI.",
-    videoSrc: "/feature-4-doable.mp4",
+    videoSrc: "feature-4-doable",
   },
 ];
 
@@ -40,6 +41,8 @@ export const FeatureCardsBento: React.FC = () => {
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  // Track which videos have failed to load from Cloudinary
+  const [failedVideos, setFailedVideos] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     // Play the active video
@@ -148,6 +151,23 @@ export const FeatureCardsBento: React.FC = () => {
     }
   };
 
+  // Handle video load error - fallback to local if Cloudinary fails
+  const handleVideoError = (index: number, feature: FeatureCard) => {
+    if (!failedVideos.has(index)) {
+      const video = videoRefs.current[index];
+      if (video) {
+        const cloudinaryUrl = getVideoUrl(feature.videoSrc, `/${feature.videoSrc}.mp4`);
+        const localPath = `/${feature.videoSrc}.mp4`;
+        // Only fallback if it was trying to load from Cloudinary
+        if (cloudinaryUrl.includes('cloudinary.com') && cloudinaryUrl !== localPath) {
+          video.src = localPath;
+          video.load(); // Reload with local source
+          setFailedVideos(prev => new Set([...prev, index]));
+        }
+      }
+    }
+  };
+
   return (
     <div id="features" className="py-20 lg:py-40 relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-6 md:px-8 lg:px-12 relative z-10">
@@ -192,9 +212,13 @@ export const FeatureCardsBento: React.FC = () => {
                       loop={false}
                       playsInline
                       onEnded={() => handleVideoEnd(index)}
+                      onError={() => handleVideoError(index, feature)}
                       aria-label={`${feature.title} - ${feature.description}`}
+                      src={failedVideos.has(index) 
+                        ? `/${feature.videoSrc}.mp4` 
+                        : getVideoUrl(feature.videoSrc, `/${feature.videoSrc}.mp4`)
+                      }
                     >
-                      <source src={feature.videoSrc} type="video/mp4" />
                       Your browser does not support the video tag.
                     </video>
                     

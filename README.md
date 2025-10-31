@@ -149,6 +149,12 @@ Chat history is persisted in the database for each conversation, allowing users 
    # Email Service (For team invitations via Resend)
    RESEND_API_KEY="your-resend-api-key"
    RESEND_FROM_EMAIL="noreply@yourdomain.com"
+   
+   # Cloudinary (For optimized video delivery on landing page)
+   # Get these from https://cloudinary.com/console
+   NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="your-cloud-name"
+   CLOUDINARY_API_KEY="your-api-key"
+   CLOUDINARY_API_SECRET="your-api-secret"
    ```
 
    Generate the auth secret:
@@ -187,6 +193,9 @@ Chat history is persisted in the database for each conversation, allowing users 
 - `GROQ_API_KEY` - Groq API key for AI chatbot features. Get a free key at <https://console.groq.com>. This is a global fallback - teams can also configure their own API keys in team settings.
 - `RESEND_API_KEY` - Resend API key for sending team invitation emails. Get your key at <https://resend.com>
 - `RESEND_FROM_EMAIL` - Verified sender email address for Resend (defaults to noreply@doable.kartiklabhshetwar.me)
+- `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` - Cloudinary cloud name for optimized video delivery (see Cloudinary Setup below)
+- `CLOUDINARY_API_KEY` - Cloudinary API key (server-side only)
+- `CLOUDINARY_API_SECRET` - Cloudinary API secret (server-side only)
 
 ### AI Features Setup
 
@@ -218,6 +227,59 @@ Chat history is persisted in the database for each conversation, allowing users 
 4. Create OAuth 2.0 Client ID
 5. Add authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
 6. Copy Client ID and Client Secret to your .env.local file
+
+### Cloudinary Setup (For Video Optimization)
+
+Cloudinary is used to serve optimized videos on the landing page. If not configured, videos will fall back to local files from the `/public` directory.
+
+1. **Create a Cloudinary Account:**
+   - Visit [cloudinary.com](https://cloudinary.com/)
+   - Sign up for a free account (includes 25GB storage and 25GB bandwidth)
+
+2. **Get Your Credentials:**
+   - Go to your [Cloudinary Dashboard](https://console.cloudinary.com/)
+   - Copy your Cloud Name, API Key, and API Secret from the Dashboard
+
+3. **Add to .env.local:**
+   ```env
+   NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="your-cloud-name"
+   CLOUDINARY_API_KEY="your-api-key"
+   CLOUDINARY_API_SECRET="your-api-secret"
+   ```
+
+   **Note:** The `NEXT_PUBLIC_` prefix is required for client-side access. The API key and secret are server-only and won't be exposed to the client.
+
+4. **Upload Your Videos:**
+
+   You have two options:
+
+   **Option A: Automated Upload (Recommended)**
+   - Run the upload script:
+     ```bash
+     npm run upload:videos
+     ```
+   - This will automatically upload all videos from `/public` to Cloudinary
+   - Videos will be uploaded with the correct public IDs:
+     - `doable` (for the main demo video)
+     - `feature-1-doable`
+     - `feature-2-doable`
+     - `feature-3-doable`
+     - `feature-4-doable`
+     - `feature-5-doable`
+
+   **Option B: Manual Upload via Dashboard**
+   - Go to your [Cloudinary Media Library](https://console.cloudinary.com/console/media_library)
+   - Upload your videos manually
+   - Make sure the public IDs match the names above (without the `.mp4` extension)
+
+5. **Benefits:**
+   - Automatic video format optimization (WebM for supported browsers)
+   - Quality optimization based on connection speed
+   - CDN delivery for faster loading
+   - Automatic thumbnail generation for video posters
+   - Reduced bandwidth costs
+
+**If Cloudinary is not configured:** The app will automatically fall back to serving videos from the `/public` directory.
 
 ## Tech Stack
 

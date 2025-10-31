@@ -1,4 +1,6 @@
-import React from 'react';
+"use client";
+import React, { useState } from 'react';
+import { getVideoUrl, getCloudinaryVideoPoster } from '@/lib/cloudinary';
 
 interface DemoVideoSectionProps {
   videoSrc: string;
@@ -9,12 +11,31 @@ interface DemoVideoSectionProps {
 }
 
 export const DemoVideoSection: React.FC<DemoVideoSectionProps> = ({
-  videoSrc='/doable-demo.mp4',
+  videoSrc='doable',
   title = "See Doable in Action",
   description = "Watch how teams use Doable to manage tasks and collaborate effectively.",
   className = '',
   poster
 }) => {
+  // Determine local fallback path
+  const localPath = videoSrc.startsWith('/') ? videoSrc : `/${videoSrc}.mp4`;
+  // Get Cloudinary URL or fallback to local path
+  const cloudinaryUrl = getVideoUrl(videoSrc, localPath);
+  const [videoSrcUrl, setVideoSrcUrl] = useState(cloudinaryUrl);
+  const [hasError, setHasError] = useState(false);
+  
+  // Generate poster from Cloudinary if not provided (only if Cloudinary is configured)
+  const posterUrl = poster || (videoSrc.startsWith('/') ? undefined : getCloudinaryVideoPoster(videoSrc));
+  
+  // Handle video load error - fallback to local if Cloudinary fails
+  const handleVideoError = () => {
+    if (!hasError && cloudinaryUrl !== localPath && cloudinaryUrl.includes('cloudinary.com')) {
+      // Cloudinary failed, use local fallback
+      setVideoSrcUrl(localPath);
+      setHasError(true);
+    }
+  };
+  
   return (
     <div id="demo" className={`py-16 md:py-24 lg:py-32 relative ${className}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -36,10 +57,11 @@ export const DemoVideoSection: React.FC<DemoVideoSectionProps> = ({
             muted
             loop
             playsInline
-            poster={poster}
+            poster={posterUrl}
             aria-label={`${title} - ${description}`}
+            onError={handleVideoError}
+            src={videoSrcUrl}
           >
-            <source src={videoSrc} type="video/mp4" />
             Your browser does not support the video tag.
           </video>
           
