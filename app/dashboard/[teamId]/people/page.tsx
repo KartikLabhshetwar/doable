@@ -1,7 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import { useTeamMembers, useTeamInvitations } from '@/lib/hooks/use-team-data'
+import { authClient } from '@/lib/auth-client'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -52,10 +55,13 @@ interface Invitation {
 export default function PeoplePage() {
   const params = useParams<{ teamId: string }>()
   const teamId = params.teamId
+  const { data: session } = authClient.useSession()
+  const queryClient = useQueryClient()
 
-  const [members, setMembers] = useState<TeamMember[]>([])
-  const [invitations, setInvitations] = useState<Invitation[]>([])
-  const [loading, setLoading] = useState(true)
+  // Use TanStack Query hooks
+  const { data: members = [], isLoading: membersLoading } = useTeamMembers(teamId)
+  const { data: invitations = [], isLoading: invitationsLoading } = useTeamInvitations(teamId)
+  
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('developer')
@@ -64,98 +70,39 @@ export default function PeoplePage() {
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
   const [memberToRemove, setMemberToRemove] = useState<{ id: string; name: string } | null>(null)
 
+  const loading = membersLoading || invitationsLoading
 
-  // Use ref to store latest fetchData to avoid stale closure issues
-  const fetchDataRef = useRef<((silentRefresh?: boolean) => Promise<void>) | null>(null)
-
-  const fetchData = useCallback(async (silentRefresh = false) => {
-    try {
-      // Only show loading on initial load, not on silent refreshes
-      if (!silentRefresh) {
-        setLoading(true)
-      }
+  // Get current user's role from session and members
+  useEffect(() => {
+    if (members.length > 0 && session?.user?.id) {
+      const currentUserMember = members.find((m: TeamMember) => 
+        m.userId === session.user.id
+      )
       
-      const [membersRes, invitationsRes, sessionRes] = await Promise.all([
-        fetch(`/api/teams/${teamId}/members`, {
-          cache: silentRefresh ? 'no-store' : 'default',
-        }),
-        fetch(`/api/teams/${teamId}/invitations`, {
-          cache: silentRefresh ? 'no-store' : 'default',
-        }),
-        fetch('/api/auth/get-session')
-      ])
-
-      if (membersRes.ok) {
-        const membersData = await membersRes.json()
-        // Force React to re-render by creating new array reference
-        setMembers([...membersData])
-        
-        // Get current user's role from session
-        if (sessionRes.ok) {
-          const sessionData = await sessionRes.json()
-          console.log('Session data:', sessionData)
-          
-          const currentUserMember = membersData.find((m: TeamMember) => 
-            m.userId === sessionData?.user?.id
-          )
-          
-          console.log('Current user member:', currentUserMember)
-          
-          if (currentUserMember) {
-            setCurrentUser({
-              userId: currentUserMember.userId,
-              role: currentUserMember.role,
-            })
-          } else {
-            // Fallback: if we can't find current user via session, 
-            // check if ANY member is admin and assume first admin is current user
-            const adminMember = membersData.find((m: TeamMember) => m.role === 'admin')
-            if (adminMember) {
-              console.log('Setting admin member as current user (fallback):', adminMember)
-              setCurrentUser({
-                userId: adminMember.userId,
-                role: adminMember.role,
-              })
-            }
-          }
+      if (currentUserMember) {
+        setCurrentUser({
+          userId: currentUserMember.userId,
+          role: currentUserMember.role,
+        })
+      } else {
+        // Fallback: if we can't find current user via session, 
+        // check if ANY member is admin and assume first admin is current user
+        const adminMember = members.find((m: TeamMember) => m.role === 'admin')
+        if (adminMember) {
+          setCurrentUser({
+            userId: adminMember.userId,
+            role: adminMember.role,
+          })
         }
       }
-
-      if (invitationsRes.ok) {
-        const invitationsData = await invitationsRes.json()
-        // Force React to re-render by creating new array reference
-        setInvitations([...invitationsData])
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error)
-      if (!silentRefresh) {
-      }
-    } finally {
-      if (!silentRefresh) {
-        setLoading(false)
-      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamId])
-
-  // Keep ref updated with latest fetchData
-  useEffect(() => {
-    fetchDataRef.current = fetchData
-  }, [fetchData])
-
-  useEffect(() => {
-    fetchData() // fetchData already handles loading state
-  }, [fetchData])
+  }, [members, session])
 
   // Add event listener to refresh people when chatbot invites team members
   useEffect(() => {
+    // This will be handled by query invalidation, but we keep the event listener for compatibility
     const handleRefresh = () => {
-      // Fetch immediately - use small delay to ensure backend is ready
-      setTimeout(() => {
-        if (fetchDataRef.current) {
-          fetchDataRef.current(true)
-        }
-      }, 50)
+      // Queries will automatically refetch when invalidated
     }
 
     window.addEventListener('refresh-people', handleRefresh)
@@ -187,7 +134,7 @@ export default function PeoplePage() {
         setInviteEmail('')
         setInviteRole('developer')
         setInviteDialogOpen(false)
-        await fetchData()
+        queryClient.invalidateQueries({ queryKey: ['invitations', teamId] })
       } else {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to send invitation')
@@ -221,7 +168,7 @@ export default function PeoplePage() {
       })
 
       if (response.ok) {
-        await fetchData()
+        queryClient.invalidateQueries({ queryKey: ['invitations', teamId] })
       } else {
         throw new Error('Failed to remove invitation')
       }
@@ -242,7 +189,7 @@ export default function PeoplePage() {
         if (response.ok) {
           setRemoveDialogOpen(false)
           setMemberToRemove(null)
-          await fetchData()
+          queryClient.invalidateQueries({ queryKey: ['members', teamId] })
         } else {
           const errorData = await response.json()
           throw new Error(errorData.error || 'Failed to remove member')
@@ -379,7 +326,7 @@ export default function PeoplePage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {members.map((member) => (
+              {members.map((member: TeamMember) => (
                 <div
                   key={member.id}
                   className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg border border-border/50 hover:bg-muted/50"
@@ -433,7 +380,7 @@ export default function PeoplePage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {invitations.map((invitation) => (
+              {invitations.map((invitation: Invitation) => (
                 <div
                   key={invitation.id}
                   className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-lg border border-border/50"

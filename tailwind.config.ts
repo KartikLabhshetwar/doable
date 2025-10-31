@@ -158,15 +158,29 @@ const config = {
   					transform: 'translateX(-50%)'
   				}
   			},
-  			'scroll-left': {
-  				from: {
-  					transform: 'translateX(0)'
-  				},
-  				to: {
-  					transform: 'translateX(50%)'
-  				}
-  			}
-  		},
+			'scroll-left': {
+				from: {
+					transform: 'translateX(0)'
+				},
+				to: {
+					transform: 'translateX(50%)'
+				}
+			},
+			blob: {
+				'0%': {
+					transform: 'translate(0px, 0px) scale(1)'
+				},
+				'33%': {
+					transform: 'translate(30px, -50px) scale(1.1)'
+				},
+				'66%': {
+					transform: 'translate(-20px, 20px) scale(0.9)'
+				},
+				'100%': {
+					transform: 'translate(0px, 0px) scale(1)'
+				}
+			}
+		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
@@ -176,9 +190,10 @@ const config = {
   			'marquee-vertical': 'marquee-vertical var(--duration) linear infinite',
   			'scroll-right': 'scroll-right var(--duration, 20s) linear infinite',
   			'scroll-left': 'scroll-left var(--duration, 20s) linear infinite',
-  			scrollRight: 'scroll-right var(--duration, 20s) linear infinite',
-  			scrollLeft: 'scroll-left var(--duration, 20s) linear infinite'
-  		}
+			scrollRight: 'scroll-right var(--duration, 20s) linear infinite',
+			scrollLeft: 'scroll-left var(--duration, 20s) linear infinite',
+			blob: 'blob 7s infinite'
+		}
   	}
   },
   plugins: [require("tailwindcss-animate")],

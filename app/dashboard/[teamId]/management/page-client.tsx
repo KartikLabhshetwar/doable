@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
+import { useTeamStats } from "@/lib/hooks/use-team-data"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer } from "@/components/ui/chart"
 import { BarChart, Bar, XAxis, YAxis, PieChart, Pie, Cell, Tooltip } from "recharts"
@@ -28,10 +29,12 @@ const CHART_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#0
 
 export function ManagementPageClient() {
   const params = useParams<{ teamId: string }>()
-  const [stats, setStats] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const teamId = params.teamId as string
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false)
   const [apiKeyStatus, setApiKeyStatus] = useState<{ hasKey: boolean; key: string | null } | null>(null)
+
+  // Use TanStack Query hook
+  const { data: stats, isLoading: loading } = useTeamStats(teamId)
 
   // Check localStorage for API key
   const checkApiKeyStatus = () => {
@@ -45,25 +48,10 @@ export function ManagementPageClient() {
   }
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await fetch(`/api/teams/${params.teamId}/stats`)
-        if (response.ok) {
-          const data = await response.json()
-          setStats(data)
-        }
-      } catch (error) {
-        console.error('Error fetching stats:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (params.teamId) {
-      fetchStats()
+    if (teamId) {
       checkApiKeyStatus()
     }
-  }, [params.teamId])
+  }, [teamId])
 
   if (loading || !stats) {
     return (

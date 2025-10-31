@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   PromptInput,
@@ -11,10 +11,18 @@ import IconPaperPlane from '../ui/IconPaperPlane'
 interface ChatInputProps {
   onSend: (message: string) => void
   disabled?: boolean
+  suggestedPrompt?: string
 }
 
-export function ChatInput({ onSend, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, suggestedPrompt }: ChatInputProps) {
   const [input, setInput] = useState('')
+
+  // Update input when a prompt is suggested
+  useEffect(() => {
+    if (suggestedPrompt) {
+      setInput(suggestedPrompt)
+    }
+  }, [suggestedPrompt])
 
   const handleSubmit = () => {
     if (input.trim() && !disabled) {

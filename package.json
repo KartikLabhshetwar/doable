@@ -30,6 +30,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tabler/icons-react": "^3.35.0",
+    "@tanstack/react-query": "^5.90.5",
     "@vercel/og": "^0.8.5",
     "ai": "^5.0.81",
     "better-auth": "^1.3.32",

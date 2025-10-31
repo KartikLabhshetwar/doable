@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { Loader2 } from 'lucide-react'
@@ -11,6 +11,19 @@ import IconPaperPlane from '../ui/IconPaperPlane'
 interface AIChatbotProps {
   teamId: string
 }
+
+const promptSuggestions = [
+  'Create a new issue for fixing the login bug',
+  'Show me all high-priority issues',
+  'What projects do we have?',
+  'Create a new project called "Web App"',
+  'List all issues in progress',
+  'Update the checkout page issue to In Progress',
+  'Add Sarah to the Web Project',
+  'Invite john@example.com to the team',
+  'Show me team statistics',
+  'What issues are assigned to me?',
+]
 
 export function AIChatbot({ teamId }: AIChatbotProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -41,10 +54,17 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>()
+
   const handleSend = (message: string) => {
     sendMessage({
       text: message,
     })
+    setSuggestedPrompt(undefined) // Clear suggestion after sending
+  }
+
+  const handlePromptClick = (prompt: string) => {
+    setSuggestedPrompt(prompt)
   }
 
   // Listen for tool executions and trigger refresh
@@ -256,13 +276,31 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+          <div className="flex flex-col items-center justify-center h-full p-6">
             <IconPaperPlane className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
-            <p className="text-sm text-muted-foreground max-w-sm">
+            <p className="text-sm text-muted-foreground max-w-sm mb-6 text-center">
               I can help you create issues, manage projects, invite team members, and more. 
               Just ask me anything!
             </p>
+            
+            {/* Prompt Suggestions */}
+            <div className="w-full max-w-2xl space-y-2">
+              <p className="text-xs font-medium text-muted-foreground mb-3 text-center">
+                Try asking:
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {promptSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handlePromptClick(suggestion)}
+                    className="text-left p-3 rounded-lg border border-border bg-card hover:bg-primary/10 hover:border-primary transition-all text-sm text-foreground"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         ) : (
           <>
@@ -304,7 +342,7 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
       </div>
 
       {/* Input */}
-      <ChatInput onSend={handleSend} disabled={isLoading} />
+      <ChatInput onSend={handleSend} disabled={isLoading} suggestedPrompt={suggestedPrompt} />
     </div>
   )
 }

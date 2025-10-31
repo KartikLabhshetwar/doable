@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +19,10 @@ import { useTransition } from 'react'
 import { IssueCardSkeleton, TableSkeleton, BoardSkeleton } from '@/components/ui/skeletons'
 import { Spinner } from '@/components/ui/spinner'
 import { Plus, AlertTriangle, Filter } from 'lucide-react'
+import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from '@/lib/hooks/use-issues'
+import { useWorkflowStates, useLabels } from '@/lib/hooks/use-team-data'
+import { useProjects } from '@/lib/hooks/use-projects'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Pagination,
   PaginationContent,
@@ -65,55 +69,44 @@ interface Label {
   color: string
 }
 
-// Cache for API responses
-const cache = new Map<string, { data: any; timestamp: number }>()
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
-
-function clearAllCachedData() {
-  cache.clear()
-}
-
-function getCachedData(key: string) {
-  const cached = cache.get(key)
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    return cached.data
-  }
-  return null
-}
-
-function setCachedData(key: string, data: any) {
-  cache.set(key, { data, timestamp: Date.now() })
-}
-
 export default function IssuesPage() {
   const params = useParams<{ teamId: string }>()
   const teamId = params.teamId
+  const queryClient = useQueryClient()
 
-  const [issues, setIssues] = useState<any[]>([])
-  const [projects, setProjects] = useState<any[]>([])
-  const [workflowStates, setWorkflowStates] = useState<any[]>([])
-  const [labels, setLabels] = useState<any[]>([])
-  const [teamKey, setTeamKey] = useState<string>('')
-  const [loading, setLoading] = useState(true)
-  const [issuesLoading, setIssuesLoading] = useState(false)
-  
-  // Use ref to store latest fetchIssues to avoid stale closure issues
-  const fetchIssuesRef = useRef<((forceRefresh?: boolean, silentRefresh?: boolean) => Promise<void>) | null>(null)
+  // State for UI
+  const [filters, setFilters] = useState<IssueFilters>({})
+  const [sort, setSort] = useState<IssueSort>({ field: 'createdAt', direction: 'desc' })
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editDialogOpenForAssign, setEditDialogOpenForAssign] = useState(false)
   const [editDialogOpenForMove, setEditDialogOpenForMove] = useState(false)
   const [currentIssue, setCurrentIssue] = useState<IssueWithRelations | null>(null)
   const [currentView, setCurrentView] = useState<ViewType>('list')
-  const [filters, setFilters] = useState<IssueFilters>({})
-  const [sort, setSort] = useState<IssueSort>({ field: 'createdAt', direction: 'desc' })
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [teamKey, setTeamKey] = useState<string>('')
   const [isPending, startTransition] = useTransition()
 
+  // Use TanStack Query hooks
+  const { data: issues = [], isLoading: issuesLoading, error: issuesError } = useIssues(teamId, filters, sort)
+  const { data: projects = [], isLoading: projectsLoading } = useProjects(teamId)
+  const { data: workflowStates = [], isLoading: workflowStatesLoading } = useWorkflowStates(teamId)
+  const { data: labels = [], isLoading: labelsLoading } = useLabels(teamId)
+  const createIssue = useCreateIssue(teamId)
+  const updateIssue = useUpdateIssue(teamId)
+  const deleteIssue = useDeleteIssue(teamId)
+
+  const loading = projectsLoading || workflowStatesLoading || labelsLoading
+
+  // Extract team key from issues
+  useEffect(() => {
+    if (issues.length > 0 && issues[0].team?.key && !teamKey) {
+      setTeamKey(issues[0].team.key)
+    }
+  }, [issues, teamKey])
 
   // Listen for sidebar collapse state changes
   useEffect(() => {
@@ -130,158 +123,14 @@ export default function IssuesPage() {
     return () => clearInterval(interval)
   }, [])
 
-  const fetchInitialData = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      // Check cache first
-      const cachedProjects = getCachedData(cacheKeys.projects)
-      const cachedWorkflowStates = getCachedData(cacheKeys.workflowStates)
-      const cachedLabels = getCachedData(cacheKeys.labels)
-
-      if (cachedProjects && cachedWorkflowStates && cachedLabels) {
-        setProjects(cachedProjects)
-        setWorkflowStates(cachedWorkflowStates)
-        setLabels(cachedLabels)
-        setLoading(false)
-        return
-      }
-
-      // Fetch data in parallel
-      const [projectsRes, workflowStatesRes, labelsRes] = await Promise.all([
-        fetch(`/api/teams/${teamId}/projects`),
-        fetch(`/api/teams/${teamId}/workflow-states`),
-        fetch(`/api/teams/${teamId}/labels`),
-      ])
-
-      if (!projectsRes.ok || !workflowStatesRes.ok || !labelsRes.ok) {
-        throw new Error('Failed to fetch data')
-      }
-
-      const [projectsData, workflowStatesData, labelsData] = await Promise.all([
-        projectsRes.json(),
-        workflowStatesRes.json(),
-        labelsRes.json(),
-      ])
-
-      // Cache the data
-      setCachedData(cacheKeys.projects, projectsData)
-      setCachedData(cacheKeys.workflowStates, workflowStatesData)
-      setCachedData(cacheKeys.labels, labelsData)
-
-      setProjects(projectsData as any)
-      setWorkflowStates(workflowStatesData as any)
-      setLabels(labelsData as any)
-    } catch (error) {
-      console.error('Error fetching data:', error)
-      setError('Failed to load data. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchIssues = useCallback(async (forceRefresh = false, silentRefresh = false) => {
-    // Create cache key dynamically
-    const issuesCacheKey = `issues-${teamId}-${JSON.stringify(filters)}-${JSON.stringify(sort)}`
-    try {
-      // Only show loading skeleton on initial load, not on silent refreshes
-      if (!silentRefresh) {
-        setIssuesLoading(true)
-      }
-      
-      // Check cache first (unless forcing refresh)
-      if (!forceRefresh) {
-        const cachedIssues = getCachedData(issuesCacheKey)
-        if (cachedIssues) {
-          setIssues(cachedIssues)
-          if (!silentRefresh) {
-            setIssuesLoading(false)
-          }
-          return
-        }
-      }
-
-      const searchParams = new URLSearchParams()
-      
-      // Add filters to search params
-      Object.entries(filters).forEach(([key, value]) => {
-        if (Array.isArray(value) && value.length > 0) {
-          value.forEach(v => searchParams.append(key, v))
-        } else if (value) {
-          searchParams.append(key, value as string)
-        }
-      })
-      
-      // Add sort to search params
-      searchParams.append('sortField', sort.field)
-      searchParams.append('sortDirection', sort.direction)
-
-      const response = await fetch(`/api/teams/${teamId}/issues?${searchParams}`, {
-        cache: forceRefresh ? 'no-store' : 'default',
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch issues')
-      }
-      
-      const data = await response.json()
-      
-      // Cache the issues
-      setCachedData(issuesCacheKey, data)
-      // Force React to re-render by creating new array reference
-      setIssues([...data])
-      
-      // Extract team key from first issue if available
-      if (data.length > 0 && data[0].team?.key && !teamKey) {
-        setTeamKey(data[0].team.key)
-      }
-    } catch (error) {
-      console.error('Error fetching issues:', error)
-      if (!silentRefresh) {
-      }
-    } finally {
-      if (!silentRefresh) {
-        setIssuesLoading(false)
-      }
-    }
-  }, [teamId, filters, sort])
-  
-  // Keep ref updated with latest fetchIssues
-  useEffect(() => {
-    fetchIssuesRef.current = fetchIssues
-  }, [fetchIssues])
-
-  // Memoized cache keys
-  const cacheKeys = useMemo(() => ({
-    projects: `projects-${teamId}`,
-    workflowStates: `workflowStates-${teamId}`,
-    labels: `labels-${teamId}`,
-    issues: `issues-${teamId}-${JSON.stringify(filters)}-${JSON.stringify(sort)}`
-  }), [teamId, filters, sort])
-
-
-  useEffect(() => {
-    fetchInitialData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamId])
-
-  useEffect(() => {
-    fetchIssues()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamId, filters, sort])
-
   // Add event listener to refresh issues when chatbot creates/updates issues
   useEffect(() => {
     const handleRefresh = () => {
-      // Clear all cache to force fresh fetch
-      clearAllCachedData()
-      
-      // Fetch immediately - use small delay to ensure backend is ready
+      // Invalidate all related queries
       setTimeout(() => {
-        if (fetchIssuesRef.current) {
-          fetchIssuesRef.current(true, true)
-        }
+        queryClient.invalidateQueries({ queryKey: ['issues', teamId] })
+        queryClient.invalidateQueries({ queryKey: ['projects', teamId] })
+        queryClient.invalidateQueries({ queryKey: ['stats', teamId] })
       }, 50)
     }
 
@@ -290,7 +139,7 @@ export default function IssuesPage() {
     return () => {
       window.removeEventListener('refresh-issues', handleRefresh)
     }
-  }, [])
+  }, [teamId, queryClient])
 
   const handleIssueView = (issue: IssueWithRelations) => {
     // For now, just open the edit dialog to view details
@@ -315,14 +164,10 @@ export default function IssuesPage() {
 
   const handleIssueDelete = async (issueId: string) => {
     startTransition(async () => {
-      const result = await deleteIssueAction(teamId, issueId)
-      if (result.success) {
-        // Clear all cache to ensure fresh data
-        clearAllCachedData()
-        // Refetch issues to ensure we have the complete data structure
-        await fetchIssues(true, false)
-      } else {
-        console.error('Error deleting issue:', result.error)
+      try {
+        await deleteIssue.mutateAsync(issueId)
+      } catch (error) {
+        console.error('Error deleting issue:', error)
       }
     })
   }
@@ -330,61 +175,21 @@ export default function IssuesPage() {
   const handleIssueUpdate = async (data: any) => {
     if (!currentIssue) return
 
-    return new Promise<void>((resolve, reject) => {
-      startTransition(async () => {
-        const result = await updateIssueAction(teamId, currentIssue.id, data)
-        if (result.success && result.issue) {
-          // Clear all cache to ensure fresh data
-          clearAllCachedData()
-          // Refetch issues to ensure we have the complete data structure
-          await fetchIssues(true, false)
-          resolve()
-        } else {
-          const error = new Error(result.error || 'Failed to update issue')
-          console.error('Error updating issue:', error)
-          reject(error)
-        }
-      })
-    })
+    try {
+      await updateIssue.mutateAsync({ issueId: currentIssue.id, data })
+    } catch (error) {
+      console.error('Error updating issue:', error)
+      throw error
+    }
   }
 
   const handleCreateIssue = async (data: CreateIssueData) => {
-    return new Promise<void>((resolve, reject) => {
-      startTransition(async () => {
-        try {
-          const result = await createIssueAction(teamId, data)
-          if (result.success && result.issue) {
-            // Optimistically add the issue to state for instant UI update
-            const newIssue = result.issue as any
-            setIssues(prev => {
-              // Check if issue already exists (prevent duplicates)
-              const exists = prev.some(i => i.id === newIssue.id)
-              if (exists) return prev
-              // Add to beginning of list
-              return [newIssue, ...prev]
-            })
-            
-            // Invalidate cache for issues (but don't refetch immediately)
-            const issuesCacheKey = `issues-${teamId}-${JSON.stringify(filters)}-${JSON.stringify(sort)}`
-            cache.delete(issuesCacheKey)
-            
-            // Silently refresh in background without blocking UI
-            fetchIssues(true, true).catch(err => {
-              console.error('Error refreshing issues in background:', err)
-            })
-            
-            resolve()
-          } else {
-            const error = new Error(result.error || 'Failed to create issue')
-            console.error('Error creating issue:', error)
-            reject(error)
-          }
-        } catch (error) {
-          console.error('Error in handleCreateIssue:', error)
-          reject(error instanceof Error ? error : new Error('Failed to create issue'))
-        }
-      })
-    })
+    try {
+      await createIssue.mutateAsync(data)
+    } catch (error) {
+      console.error('Error creating issue:', error)
+      throw error
+    }
   }
 
   const handleFiltersChange = (newFilters: IssueFilters) => {
@@ -396,7 +201,7 @@ export default function IssuesPage() {
   }
 
   // Filtered issues (already filtered by API via filters)
-  const filteredIssues = issues
+  const filteredIssues = issues || []
 
   // Pagination logic
   const totalPages = Math.ceil(filteredIssues.length / itemsPerPage)
@@ -444,6 +249,8 @@ export default function IssuesPage() {
     setCurrentPage(1)
   }, [filters])
 
+  const error = issuesError ? 'Failed to load issues. Please try again.' : null
+
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -455,7 +262,9 @@ export default function IssuesPage() {
             <h3 className="text-xl font-medium text-foreground mb-3">Something went wrong</h3>
             <p className="text-body-medium text-muted-foreground mb-6">{error}</p>
             <Button 
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ['issues', teamId] })
+              }}
               className="font-medium"
             >
               Refresh Page
@@ -585,19 +394,18 @@ export default function IssuesPage() {
                           
                           // Find the appropriate workflow state
                           const targetState = workflowStates.find(
-                            state => state.type === (checked ? 'completed' : 'unstarted')
+                            (state: WorkflowState) => state.type === (checked ? 'completed' : 'unstarted')
                           )
                           
                           if (targetState) {
                             startTransition(async () => {
-                              const result = await updateIssueAction(teamId, issueId, {
-                                workflowStateId: targetState.id
-                              })
-                              if (result.success && result.issue) {
-                                setIssues(prev => prev.map(i => i.id === issueId ? result.issue : i))
-                                cache.delete(cacheKeys.issues)
-                              } else {
-                                console.error('Error updating issue:', result.error)
+                              try {
+                                await updateIssue.mutateAsync({
+                                  issueId,
+                                  data: { workflowStateId: targetState.id }
+                                })
+                              } catch (error) {
+                                console.error('Error updating issue:', error)
                               }
                             })
                           }
@@ -621,14 +429,12 @@ export default function IssuesPage() {
                       onIssueClick={(issue) => {
                         handleIssueView(issue)
                       }}
-                      onIssueUpdate={(issueId, updates) => {
-                        setIssues(prev => 
-                          prev.map(issue =>
-                            issue.id === issueId 
-                              ? { ...issue, ...updates } as any
-                              : issue
-                          )
-                        )
+                      onIssueUpdate={async (issueId, updates) => {
+                        try {
+                          await updateIssue.mutateAsync({ issueId, data: updates })
+                        } catch (error) {
+                          console.error('Error updating issue:', error)
+                        }
                       }}
                       onIssueView={handleIssueView}
                       onIssueEdit={handleIssueEdit}

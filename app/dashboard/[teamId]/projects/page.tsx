@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,6 +16,8 @@ import { useTransition } from 'react'
 import { ProjectCardSkeleton } from '@/components/ui/skeletons'
 import { Plus, Filter, AlertTriangle, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { useProjects, useCreateProject, useUpdateProject, useDeleteProject } from '@/lib/hooks/use-projects'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Pagination,
   PaginationContent,
@@ -43,14 +45,18 @@ interface ProjectFilters {
 export default function ProjectsPage() {
   const params = useParams<{ teamId: string }>()
   const teamId = params.teamId
+  const queryClient = useQueryClient()
 
-  const [projects, setProjects] = useState<ProjectWithRelations[]>([])
+  // Use TanStack Query hooks
+  const { data: projects = [], isLoading: loading, error: queryError } = useProjects(teamId)
+  const createProject = useCreateProject(teamId)
+  const updateProject = useUpdateProject(teamId)
+  const deleteProject = useDeleteProject(teamId)
+
   const [teamKey, setTeamKey] = useState<string>('')
-  const [loading, setLoading] = useState(true)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [currentProject, setCurrentProject] = useState<ProjectWithRelations | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [currentView, setCurrentView] = useState<'list' | 'table'>('list')
   const [filters, setFilters] = useState<ProjectFilters>({
     status: [],
@@ -62,62 +68,19 @@ export default function ProjectsPage() {
   const [itemsPerPage, setItemsPerPage] = useState(12)
   const [isPending, startTransition] = useTransition()
 
-
-  // Use ref to store latest fetchProjects to avoid stale closure issues
-  const fetchProjectsRef = useRef<((silentRefresh?: boolean) => Promise<void>) | null>(null)
-
-  const fetchProjects = useCallback(async (silentRefresh = false) => {
-    try {
-      // Only show loading on initial load, not on silent refreshes
-      if (!silentRefresh) {
-        setLoading(true)
-      }
-      setError(null)
-      const response = await fetch(`/api/teams/${teamId}/projects`, {
-        cache: silentRefresh ? 'no-store' : 'default',
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch projects')
-      }
-      
-      const data = await response.json()
-      // Force React to re-render by creating new array reference
-      setProjects([...data])
-      
-      // Extract team key from first project if available
-      if (data.length > 0 && data[0].team?.key && !teamKey) {
-        setTeamKey(data[0].team.key)
-      }
-    } catch (error) {
-      console.error('Error fetching projects:', error)
-      if (!silentRefresh) {
-        setError('Failed to load projects. Please try again.')
-      }
-    } finally {
-      if (!silentRefresh) {
-        setLoading(false)
-      }
+  // Extract team key from projects
+  useEffect(() => {
+    if (projects.length > 0 && projects[0].team?.key && !teamKey) {
+      setTeamKey(projects[0].team.key)
     }
-  }, [teamId])
-
-  // Keep ref updated with latest fetchProjects
-  useEffect(() => {
-    fetchProjectsRef.current = fetchProjects
-  }, [fetchProjects])
-
-  useEffect(() => {
-    fetchProjects()
-  }, [fetchProjects])
+  }, [projects, teamKey])
 
   // Add event listener to refresh projects when chatbot creates/updates projects
   useEffect(() => {
     const handleRefresh = () => {
-      // Fetch immediately - use small delay to ensure backend is ready
+      // Invalidate queries to refetch
       setTimeout(() => {
-        if (fetchProjectsRef.current) {
-          fetchProjectsRef.current(true)
-        }
+        queryClient.invalidateQueries({ queryKey: ['projects', teamId] })
       }, 50)
     }
 
@@ -126,7 +89,7 @@ export default function ProjectsPage() {
     return () => {
       window.removeEventListener('refresh-projects', handleRefresh)
     }
-  }, [])
+  }, [teamId, queryClient])
 
   const handleProjectEdit = (project: ProjectWithRelations) => {
     setCurrentProject(project)
@@ -135,11 +98,10 @@ export default function ProjectsPage() {
 
   const handleProjectDelete = async (projectId: string) => {
     startTransition(async () => {
-      const result = await deleteProjectAction(teamId, projectId)
-      if (result.success) {
-        setProjects(prev => prev.filter(p => p.id !== projectId))
-      } else {
-        console.error('Error deleting project:', result.error)
+      try {
+        await deleteProject.mutateAsync(projectId)
+      } catch (error) {
+        console.error('Error deleting project:', error)
       }
     })
   }
@@ -156,11 +118,10 @@ export default function ProjectsPage() {
       }
       
       startTransition(async () => {
-        const result = await createProjectAction(teamId, duplicateData)
-        if (result.success && result.project) {
-          setProjects(prev => [result.project as ProjectWithRelations, ...prev])
-        } else {
-          console.error('Error duplicating project:', result.error)
+        try {
+          await createProject.mutateAsync(duplicateData)
+        } catch (error) {
+          console.error('Error duplicating project:', error)
         }
       })
     } catch (error) {
@@ -171,52 +132,31 @@ export default function ProjectsPage() {
   const handleProjectUpdate = async (data: CreateProjectData | UpdateProjectData) => {
     if (!currentProject) return
 
-    return new Promise<void>((resolve, reject) => {
-      startTransition(async () => {
-        const result = await updateProjectAction(teamId, currentProject.id, data)
-        if (result.success && result.project) {
-          setProjects(prev => prev.map(p => p.id === currentProject.id ? result.project as ProjectWithRelations : p))
-          resolve()
-        } else {
-          const error = new Error(result.error || 'Failed to update project')
-          console.error('Error updating project:', error)
-          reject(error)
-        }
-      })
-    })
+    try {
+      await updateProject.mutateAsync({ projectId: currentProject.id, data })
+    } catch (error) {
+      console.error('Error updating project:', error)
+      throw error
+    }
   }
 
   const handleProjectArchive = async (projectId: string) => {
     startTransition(async () => {
-      const result = await updateProjectAction(teamId, projectId, { status: 'canceled' })
-      if (result.success && result.project) {
-        setProjects(prev => 
-          prev.map(p => 
-            p.id === projectId 
-              ? result.project as ProjectWithRelations
-              : p
-          )
-        )
-      } else {
-        console.error('Error archiving project:', result.error)
+      try {
+        await updateProject.mutateAsync({ projectId, data: { status: 'canceled' } })
+      } catch (error) {
+        console.error('Error archiving project:', error)
       }
     })
   }
 
   const handleCreateProject = async (data: CreateProjectData | UpdateProjectData) => {
-    return new Promise<void>((resolve, reject) => {
-      startTransition(async () => {
-        const result = await createProjectAction(teamId, data as CreateProjectData)
-        if (result.success && result.project) {
-          setProjects(prev => [result.project as ProjectWithRelations, ...prev])
-          resolve()
-        } else {
-          const error = new Error(result.error || 'Failed to create project')
-          console.error('Error creating project:', error)
-          reject(error)
-        }
-      })
-    })
+    try {
+      await createProject.mutateAsync(data as CreateProjectData)
+    } catch (error) {
+      console.error('Error creating project:', error)
+      throw error
+    }
   }
 
   // Filter functions
@@ -315,6 +255,8 @@ export default function ProjectsPage() {
     setCurrentPage(1)
   }, [filters])
 
+  const error = queryError ? 'Failed to load projects. Please try again.' : null
+
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -326,7 +268,7 @@ export default function ProjectsPage() {
             <h3 className="text-xl font-medium text-foreground mb-3">Something went wrong</h3>
             <p className="text-body-medium text-muted-foreground mb-6">{error}</p>
             <Button 
-              onClick={() => window.location.reload()}
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['projects', teamId] })}
               className="font-medium"
             >
               Refresh Page
@@ -489,13 +431,13 @@ export default function ProjectsPage() {
                         }}
                         onProjectCheck={async (projectId, checked) => {
                           startTransition(async () => {
-                            const result = await updateProjectAction(teamId, projectId, {
-                              status: checked ? 'completed' : 'active'
-                            })
-                            if (result.success && result.project) {
-                              setProjects(prev => prev.map(p => p.id === projectId ? result.project as ProjectWithRelations : p))
-                            } else {
-                              console.error('Error updating project:', result.error)
+                            try {
+                              await updateProject.mutateAsync({ 
+                                projectId, 
+                                data: { status: checked ? 'completed' : 'active' } 
+                              })
+                            } catch (error) {
+                              console.error('Error updating project:', error)
                             }
                           })
                         }}
@@ -507,14 +449,12 @@ export default function ProjectsPage() {
                 {currentView === 'table' && (
                   <ProjectTable
                     projects={paginatedProjects}
-                    onProjectUpdate={(projectId, updates) => {
-                      setProjects(prev => 
-                        prev.map(project => 
-                          project.id === projectId 
-                            ? { ...project, ...updates }
-                            : project
-                        )
-                      )
+                    onProjectUpdate={async (projectId, updates) => {
+                      try {
+                        await updateProject.mutateAsync({ projectId, data: updates })
+                      } catch (error) {
+                        console.error('Error updating project:', error)
+                      }
                     }}
                     onProjectEdit={handleProjectEdit}
                     onProjectDelete={handleProjectDelete}
