@@ -7,6 +7,8 @@ import { Loader2 } from 'lucide-react'
 import { ChatMessage } from './chat-message'
 import { ChatInput } from './chat-input'
 import IconPaperPlane from '../ui/IconPaperPlane'
+import { useActiveConversation } from '@/lib/hooks/use-chat-conversation'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface AIChatbotProps {
   teamId: string
@@ -29,23 +31,103 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const processedMessageIdsRef = useRef<Set<string>>(new Set())
   const previousStatusRef = useRef<string>('ready')
+  const queryClient = useQueryClient()
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const hasInitializedMessages = useRef(false)
 
-  const { messages, sendMessage, status, error } = useChat({
+  // Load active conversation using TanStack Query
+  const { data: conversation, isLoading: isLoadingConversation } = useActiveConversation(teamId)
+
+  const { messages, sendMessage, status, error, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: `/api/teams/${teamId}/chat`,
       async prepareSendMessagesRequest({ messages }) {
         // Get API key from localStorage if available
         const apiKey = typeof window !== 'undefined' ? localStorage.getItem('groq_api_key') : null
         
+        // Ensure messages is an array and properly formatted
+        if (!messages || !Array.isArray(messages) || messages.length === 0) {
+          console.error('Invalid messages in prepareSendMessagesRequest:', messages)
+          throw new Error('Messages are required')
+        }
+        
+        // Convert messages to format expected by API
+        const formattedMessages = messages.map((msg: any) => {
+          // Extract content from different possible formats
+          let content = ''
+          if (typeof msg.content === 'string') {
+            content = msg.content
+          } else if (msg.parts && Array.isArray(msg.parts)) {
+            content = msg.parts
+              .filter((part: any) => part.type === 'text')
+              .map((part: any) => part.text || '')
+              .join('')
+          } else if (msg.text) {
+            content = msg.text
+          }
+          
+          return {
+            role: msg.role,
+            content: content || '',
+            ...(msg.toolCalls && { toolCalls: msg.toolCalls }),
+          }
+        })
+        
         return {
           body: {
-            messages,
+            messages: formattedMessages,
             ...(apiKey && { apiKey }),
+            ...(conversationId && { conversationId }),
           },
         }
       },
+      fetch: async (url, options) => {
+        const response = await fetch(url, options)
+        // Extract conversationId from response headers
+        const newConversationId = response.headers.get('X-Conversation-Id')
+        if (newConversationId && newConversationId !== conversationId) {
+          setConversationId(newConversationId)
+          // Invalidate conversation query to refresh after new message
+          queryClient.invalidateQueries({ queryKey: ['chat-conversation', 'active', teamId] })
+        }
+        return response
+      },
     }),
   })
+
+  // Load messages from conversation when it's available
+  useEffect(() => {
+    if (!conversation || !conversation.id) {
+      return
+    }
+
+    // Track conversation ID to detect changes
+    if (conversationId !== conversation.id) {
+      setConversationId(conversation.id)
+    }
+
+    // Only initialize if we don't have messages yet and conversation has messages
+    if (messages.length === 0 && conversation.messages && conversation.messages.length > 0) {
+      // Convert database messages to AI SDK format
+      // The AI SDK expects messages in UIMessage format with text or content
+      const initialMessages = conversation.messages.map((msg: any) => {
+        // Ensure the message format matches what AI SDK expects
+        return {
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content || '',
+          // Remove any parts structure if present - we want simple content
+        }
+      })
+      
+      if (initialMessages.length > 0) {
+        // Use requestAnimationFrame to ensure setMessages is called after hook is fully initialized
+        requestAnimationFrame(() => {
+          setMessages(initialMessages)
+        })
+      }
+    }
+  }, [conversation, setMessages, messages.length, conversationId])
 
   const isLoading = status !== 'ready' && status !== 'error'
 
@@ -213,12 +295,14 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
           window.dispatchEvent(new Event('refresh-issues'))
           window.dispatchEvent(new Event('refresh-projects'))
           window.dispatchEvent(new Event('refresh-people'))
+          // Refresh conversation to get latest messages from DB
+          queryClient.invalidateQueries({ queryKey: ['chat-conversation', 'active', teamId] })
         }, 700)
       }
     }
 
     previousStatusRef.current = status || 'ready'
-  }, [messages, status])
+  }, [messages, status, queryClient, teamId])
 
   // Additional check: when messages change while ready, check for tool executions
   useEffect(() => {
@@ -249,12 +333,14 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
               window.dispatchEvent(new Event('refresh-issues'))
               window.dispatchEvent(new Event('refresh-projects'))
               window.dispatchEvent(new Event('refresh-people'))
+              // Refresh conversation to get latest messages from DB
+              queryClient.invalidateQueries({ queryKey: ['chat-conversation', 'active', teamId] })
             }, 500)
           }
         }
       }
     }
-  }, [messages, status])
+  }, [messages, status, queryClient, teamId])
 
   return (
     <div className="flex flex-col h-full">
@@ -275,7 +361,14 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
-        {messages.length === 0 ? (
+        {isLoadingConversation ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="flex flex-col items-center space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Loading conversation...</p>
+            </div>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-6">
             <IconPaperPlane className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
@@ -305,18 +398,33 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
         ) : (
           <>
             {messages.map((message, index) => {
-              // Extract text content from message parts
-              const textContent = message.parts
-                ?.filter((part: any) => part.type === 'text')
-                .map((part: any) => part.text)
-                .join('') || ''
+              // Extract text content - handle both formats:
+              // 1. Messages from DB: have content directly (set via setMessages)
+              // 2. Messages from AI SDK: have parts structure
+              let textContent = ''
+              
+              const msg = message as any
+              
+              if (msg.content && typeof msg.content === 'string') {
+                // Direct content (from DB or simple messages)
+                textContent = msg.content
+              } else if (message.parts && Array.isArray(message.parts)) {
+                // Parts structure (from AI SDK streaming)
+                textContent = message.parts
+                  .filter((part: any) => part.type === 'text')
+                  .map((part: any) => part.text || '')
+                  .join('')
+              } else if (msg.text) {
+                // Fallback for text property
+                textContent = msg.text
+              }
               
               return (
                 <ChatMessage 
                   key={message.id || index} 
                   message={{
                     role: message.role,
-                    content: textContent,
+                    content: textContent || '',
                     id: message.id,
                   }} 
                 />
@@ -346,3 +454,4 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
     </div>
   )
 }
+

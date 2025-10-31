@@ -4,7 +4,7 @@ import { streamText, tool, convertToModelMessages } from 'ai'
 import { createGroq } from '@ai-sdk/groq'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { getTeamContext } from '@/lib/api/chat'
+import { getTeamContext, createChatConversation, saveChatMessages, getChatConversation, generateConversationTitle, updateConversationTitle } from '@/lib/api/chat'
 import { createIssue } from '@/lib/api/issues'
 import { updateIssue } from '@/lib/api/issues'
 import { getIssues } from '@/lib/api/issues'
@@ -30,7 +30,15 @@ export async function POST(
 ) {
   try {
     const { teamId } = await params
-    const { messages, apiKey: clientApiKey } = await request.json()
+    const { messages, apiKey: clientApiKey, conversationId: existingConversationId } = await request.json()
+
+    // Validate messages
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json(
+        { error: 'Messages are required and must be a non-empty array' },
+        { status: 400 }
+      )
+    }
 
     const userId = await getUserId()
     const user = await getUser()
@@ -40,6 +48,32 @@ export async function POST(
         { error: 'Unauthorized' },
         { status: 401 }
       )
+    }
+
+    // Get or create conversation
+    let conversationId = existingConversationId
+    if (!conversationId) {
+      // Create new conversation with title from first user message
+      const firstUserMessage = messages.find((m: any) => m.role === 'user')
+      const title = firstUserMessage 
+        ? generateConversationTitle(firstUserMessage.content || firstUserMessage.text || '')
+        : undefined
+      
+      const conversation = await createChatConversation({
+        teamId,
+        userId,
+        title,
+      })
+      conversationId = conversation.id
+    } else {
+      // Verify conversation exists and belongs to user
+      const conversation = await getChatConversation(conversationId)
+      if (!conversation || conversation.userId !== userId || conversation.teamId !== teamId) {
+        return NextResponse.json(
+          { error: 'Conversation not found' },
+          { status: 404 }
+        )
+      }
     }
 
     // Get team context
@@ -1799,7 +1833,63 @@ Always use the provided tools for actions.`
     }
 
     // Convert UIMessages to ModelMessages
-    const modelMessages = convertToModelMessages(messages)
+    // Ensure messages are in the correct UIMessage format (with parts array) before conversion
+    let modelMessages
+    try {
+      // Convert messages to UIMessage format (parts array structure)
+      // Messages from the client might already be in UIMessage format or might be simple {role, content}
+      const validMessages = messages.map((msg: any) => {
+        // If message already has parts array, use it (UIMessage format)
+        if (msg.parts && Array.isArray(msg.parts)) {
+          return {
+            id: msg.id || `msg-${Date.now()}-${Math.random()}`,
+            role: msg.role,
+            parts: msg.parts,
+            ...(msg.metadata && { metadata: msg.metadata }),
+          }
+        }
+        
+        // Otherwise, convert simple {role, content} to UIMessage format
+        const content = typeof msg.content === 'string' 
+          ? msg.content 
+          : (msg.content || msg.text || '')
+        
+        const parts: any[] = [
+          {
+            type: 'text',
+            text: content,
+          }
+        ]
+        
+        // Add tool calls if they exist
+        if (msg.toolCalls && Array.isArray(msg.toolCalls)) {
+          msg.toolCalls.forEach((tc: any) => {
+            parts.push({
+              type: 'tool-call' as const,
+              toolCallId: tc.toolCallId || tc.id || `tc-${Date.now()}-${Math.random()}`,
+              toolName: tc.toolName || tc.name,
+              args: tc.args || tc.arguments || {},
+            })
+          })
+        }
+        
+        return {
+          id: msg.id || `msg-${Date.now()}-${Math.random()}`,
+          role: msg.role,
+          parts,
+          ...(msg.metadata && { metadata: msg.metadata }),
+        }
+      })
+      
+      modelMessages = convertToModelMessages(validMessages)
+    } catch (error: any) {
+      console.error('Error converting messages:', error)
+      console.error('Messages received:', JSON.stringify(messages, null, 2))
+      return NextResponse.json(
+        { error: `Failed to process messages: ${error.message || 'Unknown error'}` },
+        { status: 400 }
+      )
+    }
 
     // Create Groq provider with API key
     const groq = createGroq({
@@ -1813,9 +1903,50 @@ Always use the provided tools for actions.`
       messages: modelMessages,
       tools,
       stopWhen: stepCountIs(5), // Allow multi-step tool calls
+      onFinish: async ({ text, usage, toolCalls, toolResults }) => {
+        // Save all messages to database after completion
+        try {
+          // Collect all messages including the assistant's response
+          const allMessages = [
+            ...messages.map((msg: any) => ({
+              role: msg.role,
+              content: typeof msg.content === 'string' ? msg.content : (msg.content || msg.text || ''),
+              toolCalls: msg.toolCalls || null,
+            })),
+            {
+              role: 'assistant',
+              content: text || '',
+              toolCalls: toolCalls ? JSON.parse(JSON.stringify(toolCalls)) : null,
+            },
+          ]
+
+          await saveChatMessages({
+            conversationId,
+            messages: allMessages,
+          })
+
+          // Update conversation title if this is the first message
+          const conversation = await getChatConversation(conversationId)
+          if (conversation && !conversation.title && allMessages.length >= 2) {
+            const firstUserMessage = allMessages.find((m) => m.role === 'user')
+            if (firstUserMessage) {
+              const title = generateConversationTitle(firstUserMessage.content)
+              await updateConversationTitle(conversationId, title)
+            }
+          }
+        } catch (error) {
+          console.error('Error saving chat messages:', error)
+          // Don't fail the request if saving fails
+        }
+      },
     })
 
+    // Create a custom response that includes conversationId in headers
     const response = result.toUIMessageStreamResponse()
+    
+    // Add conversationId to response headers
+    response.headers.set('X-Conversation-Id', conversationId)
+    
     return response
   } catch (error) {
     console.error('Error in chat route:', error)
