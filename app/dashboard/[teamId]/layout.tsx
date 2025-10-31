@@ -230,6 +230,7 @@ export default function Layout(props: { children: React.ReactNode }) {
   const [team, setTeam] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isMac, setIsMac] = useState(false);
 
   useEffect(() => {
     // Fetch team data
@@ -265,6 +266,36 @@ export default function Layout(props: { children: React.ReactNode }) {
     };
     fetchTeam();
   }, [params.teamId, router]);
+
+  // Detect if user is on Mac
+  useEffect(() => {
+    setIsMac(navigator.platform.toUpperCase().indexOf('MAC') >= 0);
+  }, []);
+
+  // Add Cmd+K (Mac) or Ctrl+K (Windows/Linux) shortcut to open chatbot
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check for Cmd+K (Mac) or Ctrl+K (Windows/Linux)
+      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+        // Don't trigger if user is typing in an input, textarea, or contenteditable
+        const target = event.target as HTMLElement;
+        const isInputElement = 
+          target.tagName === 'INPUT' || 
+          target.tagName === 'TEXTAREA' || 
+          target.isContentEditable;
+        
+        if (!isInputElement) {
+          event.preventDefault();
+          setChatbotOpen((prev) => !prev);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   const handleSignOut = async () => {
     await authClient.signOut();
@@ -322,15 +353,22 @@ export default function Layout(props: { children: React.ReactNode }) {
               {session?.user && (
                 <>
                   {/* AI Chatbot Button */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setChatbotOpen(true)}
-                    className="relative"
-                    title="Open Doable AI"
-                  >
-                    <IconPaperPlane className="h-8 w-8" />
-                  </Button>
+                  <div className="border border-border/80 rounded-md p-2">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setChatbotOpen(true)}
+                      className="relative"
+                      title={`Open Doable AI (${isMac ? '⌘' : 'Ctrl'}+K)`}
+                    >
+                      <IconPaperPlane className="h-8 w-8" />
+                    </Button>
+                    <kbd className="pointer-events-none inline-flex h-6 select-none items-center gap-1 rounded-md border border-border/50 bg-muted/50 px-2 font-mono text-[11px] font-medium text-muted-foreground opacity-100 whitespace-nowrap shadow-sm">
+                      <span className="text-xs">{isMac ? '⌘' : 'Ctrl'}</span>K
+                    </kbd>
+                    </div>
+                  </div>
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
