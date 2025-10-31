@@ -1,23 +1,22 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ProjectCard } from '@/components/projects/project-card'
+import { Card, CardContent } from '@/components/ui/card'
 import { ProjectTable } from '@/components/projects/project-table'
 import { ProjectDialog } from '@/components/projects/project-dialog'
 import { ProjectList } from '@/components/projects/project-list'
 import { ViewSwitcher } from '@/components/shared/view-switcher'
 import { CreateProjectData, UpdateProjectData, ProjectWithRelations } from '@/lib/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
-import { createProjectAction, updateProjectAction, deleteProjectAction } from '@/lib/actions/projects'
 import { useTransition } from 'react'
 import { ProjectCardSkeleton } from '@/components/ui/skeletons'
-import { Plus, Filter, AlertTriangle, X } from 'lucide-react'
+import { Plus, Filter, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useProjects, useCreateProject, useUpdateProject, useDeleteProject } from '@/lib/hooks/use-projects'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   Pagination,
   PaginationContent,
@@ -100,8 +99,12 @@ export default function ProjectsPage() {
     startTransition(async () => {
       try {
         await deleteProject.mutateAsync(projectId)
-      } catch (error) {
+        toast.success('Project deleted successfully')
+      } catch (error: any) {
         console.error('Error deleting project:', error)
+        toast.error('Failed to delete project', {
+          description: error.message || 'Please try again',
+        })
       }
     })
   }
@@ -120,12 +123,19 @@ export default function ProjectsPage() {
       startTransition(async () => {
         try {
           await createProject.mutateAsync(duplicateData)
-        } catch (error) {
+          toast.success('Project duplicated successfully')
+        } catch (error: any) {
           console.error('Error duplicating project:', error)
+          toast.error('Failed to duplicate project', {
+            description: error.message || 'Please try again',
+          })
         }
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error duplicating project:', error)
+      toast.error('Failed to duplicate project', {
+        description: error.message || 'Please try again',
+      })
     }
   }
 
@@ -134,8 +144,12 @@ export default function ProjectsPage() {
 
     try {
       await updateProject.mutateAsync({ projectId: currentProject.id, data })
-    } catch (error) {
+      toast.success('Project updated successfully')
+    } catch (error: any) {
       console.error('Error updating project:', error)
+      toast.error('Failed to update project', {
+        description: error.message || 'Please try again',
+      })
       throw error
     }
   }
@@ -144,8 +158,12 @@ export default function ProjectsPage() {
     startTransition(async () => {
       try {
         await updateProject.mutateAsync({ projectId, data: { status: 'canceled' } })
-      } catch (error) {
+        toast.success('Project archived successfully')
+      } catch (error: any) {
         console.error('Error archiving project:', error)
+        toast.error('Failed to archive project', {
+          description: error.message || 'Please try again',
+        })
       }
     })
   }
@@ -153,8 +171,14 @@ export default function ProjectsPage() {
   const handleCreateProject = async (data: CreateProjectData | UpdateProjectData) => {
     try {
       await createProject.mutateAsync(data as CreateProjectData)
-    } catch (error) {
+      toast.success('Project created successfully', {
+        description: `Project "${data.name}" has been created`,
+      })
+    } catch (error: any) {
       console.error('Error creating project:', error)
+      toast.error('Failed to create project', {
+        description: error.message || 'Please try again',
+      })
       throw error
     }
   }
@@ -436,8 +460,11 @@ export default function ProjectsPage() {
                                 projectId, 
                                 data: { status: checked ? 'completed' : 'active' } 
                               })
-                            } catch (error) {
+                            } catch (error: any) {
                               console.error('Error updating project:', error)
+                              toast.error('Failed to update project status', {
+                                description: error.message || 'Please try again',
+                              })
                             }
                           })
                         }}
@@ -452,8 +479,11 @@ export default function ProjectsPage() {
                     onProjectUpdate={async (projectId, updates) => {
                       try {
                         await updateProject.mutateAsync({ projectId, data: updates })
-                      } catch (error) {
+                      } catch (error: any) {
                         console.error('Error updating project:', error)
+                        toast.error('Failed to update project', {
+                          description: error.message || 'Please try again',
+                        })
                       }
                     }}
                     onProjectEdit={handleProjectEdit}

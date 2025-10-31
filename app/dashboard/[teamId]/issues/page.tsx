@@ -23,6 +23,7 @@ import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from '@/lib
 import { useWorkflowStates, useLabels } from '@/lib/hooks/use-team-data'
 import { useProjects } from '@/lib/hooks/use-projects'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   Pagination,
   PaginationContent,
@@ -166,8 +167,12 @@ export default function IssuesPage() {
     startTransition(async () => {
       try {
         await deleteIssue.mutateAsync(issueId)
-      } catch (error) {
+        toast.success('Issue deleted successfully')
+      } catch (error: any) {
         console.error('Error deleting issue:', error)
+        toast.error('Failed to delete issue', {
+          description: error.message || 'Please try again',
+        })
       }
     })
   }
@@ -177,8 +182,12 @@ export default function IssuesPage() {
 
     try {
       await updateIssue.mutateAsync({ issueId: currentIssue.id, data })
-    } catch (error) {
+      toast.success('Issue updated successfully')
+    } catch (error: any) {
       console.error('Error updating issue:', error)
+      toast.error('Failed to update issue', {
+        description: error.message || 'Please try again',
+      })
       throw error
     }
   }
@@ -186,8 +195,14 @@ export default function IssuesPage() {
   const handleCreateIssue = async (data: CreateIssueData) => {
     try {
       await createIssue.mutateAsync(data)
-    } catch (error) {
+      toast.success('Issue created successfully', {
+        description: `Issue "${data.title}" has been created`,
+      })
+    } catch (error: any) {
       console.error('Error creating issue:', error)
+      toast.error('Failed to create issue', {
+        description: error.message || 'Please try again',
+      })
       throw error
     }
   }
@@ -404,8 +419,11 @@ export default function IssuesPage() {
                                   issueId,
                                   data: { workflowStateId: targetState.id }
                                 })
-                              } catch (error) {
+                              } catch (error: any) {
                                 console.error('Error updating issue:', error)
+                                toast.error('Failed to update issue status', {
+                                  description: error.message || 'Please try again',
+                                })
                               }
                             })
                           }
@@ -432,8 +450,11 @@ export default function IssuesPage() {
                       onIssueUpdate={async (issueId, updates) => {
                         try {
                           await updateIssue.mutateAsync({ issueId, data: updates })
-                        } catch (error) {
+                        } catch (error: any) {
                           console.error('Error updating issue:', error)
+                          toast.error('Failed to update issue', {
+                            description: error.message || 'Please try again',
+                          })
                         }
                       }}
                       onIssueView={handleIssueView}

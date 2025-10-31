@@ -426,7 +426,6 @@ export function ProjectDialog({
             <div className="flex-1 px-6 py-6 space-y-6">
               {/* Project Name */}
               <div className="space-y-2">
-                <h2 className="text-lg font-semibold">Project name</h2>
                 <FormField
                   control={form.control}
                   name="name"
@@ -434,8 +433,8 @@ export function ProjectDialog({
                     <FormItem>
                       <FormControl>
                         <Input 
-                          placeholder="Add a short summary..." 
-                          className="text-base border-0 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-auto py-2 bg-transparent w-full"
+                          placeholder="Project name" 
+                          className="text-lg font-semibold border-0 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-auto py-0 bg-transparent w-full placeholder:text-foreground/60"
                           {...field}
                           autoFocus={!initialData}
                           value={field.value || ''}
@@ -444,6 +443,22 @@ export function ProjectDialog({
                           }}
                           onBlur={field.onBlur}
                           ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Add a short summary..."
+                          className="text-sm border-0 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 resize-none min-h-[60px] text-muted-foreground"
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
@@ -750,23 +765,6 @@ export function ProjectDialog({
                 </DropdownMenu>
               </div>
 
-              {/* Description */}
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Write a description, a project brief, or collect ideas..."
-                        className="border-0 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 resize-none min-h-[150px] text-muted-foreground"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
 
               {/* Milestones Section */}

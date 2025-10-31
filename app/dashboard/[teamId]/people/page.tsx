@@ -27,6 +27,7 @@ import { Mail, Trash2, ChevronDown } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import IconUsers from '@/components/ui/IconUsers'
+import { toast } from 'sonner'
 
 interface TeamMember {
   id: string
@@ -135,12 +136,18 @@ export default function PeoplePage() {
         setInviteRole('developer')
         setInviteDialogOpen(false)
         queryClient.invalidateQueries({ queryKey: ['invitations', teamId] })
+        toast.success('Invitation sent successfully', {
+          description: `An invitation has been sent to ${inviteEmail}`,
+        })
       } else {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to send invitation')
       }
     } catch (error: any) {
       console.error('Error sending invitation:', error)
+      toast.error('Failed to send invitation', {
+        description: error.message || 'Please try again',
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -153,11 +160,15 @@ export default function PeoplePage() {
       })
 
       if (response.ok) {
+        toast.success('Invitation resent successfully')
       } else {
         throw new Error('Failed to resend invitation')
       }
     } catch (error) {
       console.error('Error resending invitation:', error)
+      toast.error('Failed to resend invitation', {
+        description: 'Please try again',
+      })
     }
   }
 
@@ -169,11 +180,15 @@ export default function PeoplePage() {
 
       if (response.ok) {
         queryClient.invalidateQueries({ queryKey: ['invitations', teamId] })
+        toast.success('Invitation removed successfully')
       } else {
         throw new Error('Failed to remove invitation')
       }
     } catch (error) {
       console.error('Error removing invitation:', error)
+      toast.error('Failed to remove invitation', {
+        description: 'Please try again',
+      })
     }
   }
 
@@ -190,12 +205,18 @@ export default function PeoplePage() {
           setRemoveDialogOpen(false)
           setMemberToRemove(null)
           queryClient.invalidateQueries({ queryKey: ['members', teamId] })
+          toast.success('Member removed successfully', {
+            description: `${memberToRemove.name} has been removed from the team`,
+          })
         } else {
           const errorData = await response.json()
           throw new Error(errorData.error || 'Failed to remove member')
         }
       } catch (error: any) {
         console.error('Error removing member:', error)
+        toast.error('Failed to remove member', {
+          description: error.message || 'Please try again',
+        })
       }
     }
     
