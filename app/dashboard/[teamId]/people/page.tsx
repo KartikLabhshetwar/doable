@@ -261,17 +261,22 @@ export default function PeoplePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold mb-2">People</h1>
-          <p className="text-muted-foreground text-sm">
+          <h1 className="text-xl sm:text-2xl font-semibold mb-1 sm:mb-2">People</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm">
             Manage team members and their roles
           </p>
         </div>
-        <Button onClick={() => setInviteDialogOpen(true)} className="font-medium">
-          <IconUsers className="h-4 w-4 mr-2" />
-          Invite Developer
+        <Button 
+          onClick={() => setInviteDialogOpen(true)} 
+          className="font-medium"
+          size="sm"
+        >
+          <IconUsers className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Invite Developer</span>
+          <span className="sm:hidden">Invite</span>
         </Button>
       </div>
 
@@ -377,22 +382,22 @@ export default function PeoplePage() {
               {members.map((member) => (
                 <div
                   key={member.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border/50 hover:bg-muted/50"
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg border border-border/50 hover:bg-muted/50"
                 >
-                  <div className="flex items-center gap-3 flex-1">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
                     <UserAvatar
                       name={member.userName}
                       size="md"
                     />
-                    <div>
-                      <div className="font-medium">{member.userName}</div>
-                      <div className="text-sm text-muted-foreground">{member.userEmail}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium truncate">{member.userName}</div>
+                      <div className="text-xs sm:text-sm text-muted-foreground truncate">{member.userEmail}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                     <span 
                       className={cn(
-                        "text-xs px-3 py-1 rounded-full font-medium",
+                        "text-xs px-2 sm:px-3 py-1 rounded-full font-medium whitespace-nowrap",
                         member.role === 'admin' 
                           ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
                           : member.role === 'viewer'
@@ -407,7 +412,7 @@ export default function PeoplePage() {
                         variant="outline"
                         size="sm"
                         onClick={() => openRemoveDialog(member.id, member.userName)}
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 touch-manipulation h-8 w-8 sm:h-9 sm:w-9 p-0"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -431,29 +436,34 @@ export default function PeoplePage() {
               {invitations.map((invitation) => (
                 <div
                   key={invitation.id}
-                  className="flex items-center justify-between p-3 rounded-lg border border-border/50"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-lg border border-border/50"
                 >
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <div className="font-medium">{invitation.email}</div>
-                      <div className="text-sm text-muted-foreground capitalize">
-                        {invitation.role} • Invited {new Date(invitation.createdAt).toLocaleDateString()}
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Mail className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium truncate">{invitation.email}</div>
+                      <div className="text-xs sm:text-sm text-muted-foreground capitalize">
+                        <span className="whitespace-nowrap">{invitation.role}</span>
+                        <span className="hidden sm:inline"> • </span>
+                        <span className="block sm:inline">Invited {new Date(invitation.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleResendInvitation(invitation.id)}
+                      className="touch-manipulation text-xs sm:text-sm"
                     >
-                      Resend
+                      <span className="hidden sm:inline">Resend</span>
+                      <span className="sm:hidden">Resend</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleRemoveInvitation(invitation.id)}
+                      className="touch-manipulation h-8 w-8 sm:h-9 sm:w-9 p-0"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

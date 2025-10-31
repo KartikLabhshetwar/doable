@@ -471,12 +471,12 @@ export default function IssuesPage() {
     <ErrorBoundary>
       <div className={`space-y-6 ${currentView === 'board' ? 'h-full' : ''}`}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">Issues</h1>
-          <p className="text-muted-foreground text-sm">Manage and track your team&apos;s issues</p>
+          <h1 className="text-xl sm:text-2xl font-semibold">Issues</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm">Manage and track your team&apos;s issues</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <FilterBar
             filters={filters}
             onFiltersChange={handleFiltersChange}
@@ -488,15 +488,18 @@ export default function IssuesPage() {
             onClick={() => setCreateDialogOpen(true)}
             className="font-medium"
             disabled={loading}
+            size="sm"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Issue
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Create Issue</span>
+            <span className="sm:hidden">Create</span>
           </Button>
         </div>
       </div>
 
       {/* View Switcher */}
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between sm:justify-end">
+        <span className="text-sm text-muted-foreground sm:hidden">Views</span>
         <ViewSwitcher
           currentView={currentView}
           onViewChange={setCurrentView}
@@ -566,7 +569,7 @@ export default function IssuesPage() {
               <>
                 {currentView === 'list' && (
                   <Card className="border-border/50">
-                    <CardContent className="p-0">
+                    <CardContent className="p-0 overflow-x-auto">
                       <IssueList
                         issues={filteredIssues as any}
                         workflowStates={workflowStates}
@@ -645,7 +648,7 @@ export default function IssuesPage() {
                 )}
 
                 {currentView === 'board' && (
-                  <div className="h-[calc(100vh-280px)] overflow-hidden relative -mx-6 px-6">
+                  <div className="h-[calc(100vh-200px)] sm:h-[calc(100vh-280px)] overflow-hidden relative -mx-6 px-2 sm:px-6">
                     <IssueBoard
                       issues={filteredIssues as any}
                       workflowStates={workflowStates}
@@ -683,17 +686,19 @@ export default function IssuesPage() {
                 )}
 
                 {currentView === 'table' && (
-                  <IssueTable
-                    issues={paginatedIssues as any}
-                    workflowStates={workflowStates}
-                    projects={projects}
-                    onIssueClick={(issue) => {
-                      handleIssueView(issue)
-                    }}
-                    onSort={handleSort}
-                    sortField={sort.field}
-                    sortDirection={sort.direction}
-                  />
+                  <div className="overflow-x-auto -mx-6 px-6">
+                    <IssueTable
+                      issues={paginatedIssues as any}
+                      workflowStates={workflowStates}
+                      projects={projects}
+                      onIssueClick={(issue) => {
+                        handleIssueView(issue)
+                      }}
+                      onSort={handleSort}
+                      sortField={sort.field}
+                      sortDirection={sort.direction}
+                    />
+                  </div>
                 )}
               </>
             )}

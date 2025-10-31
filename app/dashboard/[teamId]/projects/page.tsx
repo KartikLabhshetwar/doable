@@ -370,19 +370,19 @@ export default function ProjectsPage() {
     <ErrorBoundary>
       <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">Projects</h1>
-          <p className="text-muted-foreground text-sm">Manage your team&apos;s projects</p>
+          <h1 className="text-xl sm:text-2xl font-semibold">Projects</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm">Manage your team&apos;s projects</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <DropdownMenu open={isFilterOpen} onOpenChange={setIsFilterOpen}>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="font-medium">
-                <Filter className="h-4 w-4 mr-2" />
-                Filters
+              <Button variant="outline" className="font-medium" size="sm">
+                <Filter className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Filters</span>
                 {hasActiveFilters && (
-                  <Badge variant="secondary" className="ml-2 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center">
+                  <Badge variant="secondary" className="ml-1 sm:ml-2 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center">
                     {getActiveFilterCount()}
                   </Badge>
                 )}
@@ -441,15 +441,18 @@ export default function ProjectsPage() {
           <Button 
             onClick={() => setCreateDialogOpen(true)}
             className="font-medium"
+            size="sm"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Project
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Create Project</span>
+            <span className="sm:hidden">Create</span>
           </Button>
         </div>
       </div>
 
       {/* View Switcher */}
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between sm:justify-end">
+        <span className="text-sm text-muted-foreground sm:hidden">Views</span>
         <ViewSwitcher
           currentView={currentView}
           onViewChange={(view) => setCurrentView(view as 'list' | 'table')}

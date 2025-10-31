@@ -51,7 +51,8 @@ export function IssueCard({
   return (
     <Card
       className={cn(
-        'p-3 cursor-pointer transition-all hover:shadow-sm border-border/40 bg-card/80 backdrop-blur-sm',
+        'p-2.5 sm:p-3 cursor-pointer transition-all hover:shadow-sm border-border/40 bg-card/80 backdrop-blur-sm',
+        'touch-manipulation active:scale-[0.98]',
         isDragging && 'opacity-50',
         className
       )}

@@ -41,7 +41,7 @@ export function ProjectCard({
   return (
     <Card
       className={cn(
-        'p-4 transition-all hover:bg-muted/50 border-border/50',
+        'p-3 sm:p-4 transition-all hover:bg-muted/50 border-border/50 touch-manipulation active:scale-[0.98]',
         isDragging && 'opacity-50',
         className
       )}

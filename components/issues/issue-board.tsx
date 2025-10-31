@@ -116,21 +116,26 @@ export function IssueBoard({
     setIsDragging(true)
   }
 
-  const boardGap = sidebarCollapsed ? 'gap-8' : 'gap-6'
+  // Mobile-responsive: smaller gaps and columns on mobile
+  const boardGap = sidebarCollapsed 
+    ? 'gap-4 sm:gap-8' 
+    : 'gap-3 sm:gap-6'
+  
   // Always use flex-1 so columns expand equally to fill available space
-  // Set minimum width based on sidebar state for better UX
+  // Smaller minimum width on mobile for better fit
   const columnWidth = sidebarCollapsed 
-    ? 'min-w-[300px] flex-1' 
-    : 'min-w-[280px] flex-1'
+    ? 'min-w-[260px] sm:min-w-[300px] flex-1' 
+    : 'min-w-[240px] sm:min-w-[280px] flex-1'
   
   return (
     <DragDropContext onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
       <div className={cn(
         'flex', 
         boardGap, 
-        'pb-4 h-full bg-muted/30 px-4 py-4',
+        'pb-4 h-full bg-muted/30 px-2 sm:px-4 py-4',
         // Fill full width - columns will expand equally with flex-1
-        'w-full min-w-0',
+        // Enable horizontal scroll on mobile
+        'w-full min-w-0 overflow-x-auto',
         className
       )}>
         {workflowStates.map((state) => {
@@ -147,9 +152,9 @@ export function IssueBoard({
             <div key={state.id} className={cn('flex flex-col', columnWidth)}>
               {/* Column Header */}
               <div className="flex items-center justify-between mb-3 px-1">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2 sm:gap-2.5">
                   {getStatusIcon()}
-                  <h3 className="font-medium text-sm text-foreground">{state.name}</h3>
+                  <h3 className="font-medium text-xs sm:text-sm text-foreground">{state.name}</h3>
                   <span className="text-xs text-muted-foreground font-normal">{stateIssues.length}</span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -158,7 +163,7 @@ export function IssueBoard({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0 hover:bg-muted/70"
+                        className="h-7 w-7 sm:h-6 sm:w-6 p-0 hover:bg-muted/70 touch-manipulation"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground/60" />
@@ -171,7 +176,7 @@ export function IssueBoard({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 w-6 p-0 hover:bg-muted/70"
+                    className="h-7 w-7 sm:h-6 sm:w-6 p-0 hover:bg-muted/70 touch-manipulation"
                     onClick={() => onCreateIssue?.(state.id)}
                   >
                     <Plus className="h-3.5 w-3.5 text-muted-foreground/60" />
@@ -197,11 +202,11 @@ export function IssueBoard({
                         <div className="pt-2">
                           <Button
                             variant="ghost"
-                            className="w-full h-10 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50 border-dashed border border-muted-foreground/20 rounded-md flex items-center justify-center"
+                            className="w-full h-10 sm:h-10 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50 border-dashed border border-muted-foreground/20 rounded-md flex items-center justify-center touch-manipulation text-sm"
                             onClick={() => onCreateIssue?.(state.id)}
                           >
                             <Plus className="h-4 w-4 mr-2" />
-                            Add issue
+                            <span className="text-xs sm:text-sm">Add issue</span>
                           </Button>
                         </div>
                       ) : (
