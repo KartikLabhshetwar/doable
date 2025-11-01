@@ -6,8 +6,9 @@ import { IssueWithRelations, PriorityLevel } from '@/lib/types'
 import { UserAvatar } from '@/components/shared/user-avatar'
 import { PriorityIcon } from '@/components/shared/priority-icon'
 import { Button } from '@/components/ui/button'
-import { ChevronDown, ChevronRight, Plus, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, X, Loader2 } from 'lucide-react'
 import { ActionsMenu, issueActions } from '@/components/shared/actions-menu'
+import { cn } from '@/lib/utils'
 
 interface IssueListProps {
   issues: IssueWithRelations[]
@@ -166,17 +167,26 @@ export function IssueList({
                 {stateIssues.map((issue) => {
                   const identifier = getIssueIdentifier(issue)
                   const isIssueCompleted = isCompleted(state.type)
+                  const isOptimistic = (issue as any).isOptimistic || issue.id.startsWith('temp-')
                   
                   return (
                     <div
                       key={issue.id}
-                      className="flex items-center gap-3 px-3 py-2 hover:bg-muted/30 transition-colors group/item cursor-pointer"
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 hover:bg-muted/30 transition-colors group/item cursor-pointer",
+                        isOptimistic && "opacity-75"
+                      )}
                       onClick={() => onIssueClick?.(issue)}
                     >
                       {/* Issue identifier */}
-                      <span className="text-xs font-mono text-muted-foreground flex-shrink-0">
-                        {identifier}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {isOptimistic && (
+                          <Loader2 className="h-3 w-3 text-primary animate-spin" />
+                        )}
+                        <span className="text-xs font-mono text-muted-foreground">
+                          {identifier}
+                        </span>
+                      </div>
 
                       {/* Checkbox */}
                       <button

@@ -15,7 +15,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { ArrowUpDown, Calendar, MessageSquare } from 'lucide-react'
+import { ArrowUpDown, MessageSquare, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface IssueTableProps {
   issues: IssueWithRelations[]
@@ -128,16 +129,25 @@ export function IssueTable({
             issues.map((issue) => {
               const workflowState = getWorkflowState(issue.workflowStateId)
               const project = getProjectInfo(issue)
+              const isOptimistic = (issue as any).isOptimistic || issue.id.startsWith('temp-')
               
               return (
                 <TableRow
                   key={issue.id}
-                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className={cn(
+                    "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800",
+                    isOptimistic && "opacity-75"
+                  )}
                   onClick={() => onIssueClick?.(issue)}
                 >
                   <TableCell className="font-medium">
                     <div className="max-w-xs">
-                      <div className="truncate">{issue.title}</div>
+                      <div className="flex items-center gap-2 truncate">
+                        {isOptimistic && (
+                          <Loader2 className="h-3 w-3 text-primary animate-spin flex-shrink-0" />
+                        )}
+                        <span className="truncate">{issue.title}</span>
+                      </div>
                       {issue.description && (
                         <div className="text-sm text-gray-500 truncate mt-1">
                           {issue.description}

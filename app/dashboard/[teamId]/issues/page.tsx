@@ -193,14 +193,21 @@ export default function IssuesPage() {
   }
 
   const handleCreateIssue = async (data: CreateIssueData) => {
+    // Show loading toast immediately
+    const toastId = toast.loading('Creating issue...', {
+      description: `"${data.title}" is being created`,
+    })
+    
     try {
       await createIssue.mutateAsync(data)
       toast.success('Issue created successfully', {
+        id: toastId,
         description: `Issue "${data.title}" has been created`,
       })
     } catch (error: any) {
       console.error('Error creating issue:', error)
       toast.error('Failed to create issue', {
+        id: toastId,
         description: error.message || 'Please try again',
       })
       throw error

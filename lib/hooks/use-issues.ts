@@ -58,11 +58,30 @@ export function useCreateIssue(teamId: string) {
       const previousIssues = queryClient.getQueryData<IssueWithRelations[]>(['issues', teamId])
       const workflowStates = queryClient.getQueryData<any[]>(['workflow-states', teamId])
       const projects = queryClient.getQueryData<any[]>(['projects', teamId])
+      const labels = queryClient.getQueryData<any[]>(['labels', teamId])
       const team = queryClient.getQueryData<any>(['team', teamId])
       
       // Find workflow state and project from cache for realistic optimistic issue
       const workflowState = workflowStates?.find((ws: any) => ws.id === newIssue.workflowStateId)
       const project = newIssue.projectId ? projects?.find((p: any) => p.id === newIssue.projectId) : null
+      
+      // Get selected labels from cache
+      const selectedLabels = newIssue.labelIds && Array.isArray(newIssue.labelIds) && labels
+        ? newIssue.labelIds.map((labelId: string) => {
+            const label = labels.find((l: any) => l.id === labelId)
+            return label ? {
+              id: `temp-label-${labelId}`,
+              label: {
+                id: label.id,
+                name: label.name,
+                color: label.color,
+                teamId: label.teamId,
+                createdAt: label.createdAt || new Date(),
+                updatedAt: label.updatedAt || new Date(),
+              }
+            } : null
+          }).filter(Boolean)
+        : []
       
       // Create optimistic issue with temporary ID
       const optimisticIssue: IssueWithRelations = {
@@ -130,9 +149,12 @@ export function useCreateIssue(teamId: string) {
           createdAt: new Date(),
           updatedAt: new Date(),
         },
-        labels: [],
+        labels: selectedLabels,
         comments: [],
       }
+      
+      // Mark as optimistic/loading
+      ;(optimisticIssue as any).isOptimistic = true
       
       // Optimistically update all issue queries for this team
       queryClient.setQueriesData<IssueWithRelations[]>(

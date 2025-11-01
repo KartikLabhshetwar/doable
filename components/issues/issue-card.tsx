@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils'
 import { IssueWithRelations, PriorityLevel } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { PriorityIcon } from '@/components/shared/priority-icon'
-import { Circle, X } from 'lucide-react'
+import { Circle, X, Loader2 } from 'lucide-react'
 
 interface IssueCardProps {
   issue: IssueWithRelations
@@ -36,6 +36,8 @@ export function IssueCard({
     .join('')
     .toUpperCase()
     .slice(0, 2) || ''
+  
+  const isOptimistic = (issue as any).isOptimistic || issue.id.startsWith('temp-')
 
   return (
     <Card
@@ -43,6 +45,7 @@ export function IssueCard({
         'p-2.5 sm:p-3 cursor-pointer transition-all hover:shadow-sm border-border/40 bg-card/80 backdrop-blur-sm',
         'touch-manipulation active:scale-[0.98]',
         isDragging && 'opacity-50',
+        isOptimistic && 'opacity-75 animate-pulse border-primary/30',
         className
       )}
       onClick={onClick}
@@ -50,9 +53,14 @@ export function IssueCard({
       <div className="space-y-2.5">
         {/* Issue ID */}
         <div className="flex items-center justify-between">
-          <span className="font-mono text-xs font-medium text-muted-foreground">
-            {issueId}
-          </span>
+          <div className="flex items-center gap-2">
+            {isOptimistic && (
+              <Loader2 className="h-3 w-3 text-primary animate-spin" />
+            )}
+            <span className="font-mono text-xs font-medium text-muted-foreground">
+              {issueId}
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             {/* Priority */}
             <PriorityIcon 
