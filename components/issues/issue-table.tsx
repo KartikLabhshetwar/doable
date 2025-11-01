@@ -5,7 +5,7 @@ import { WorkflowState, Project, Label } from '@prisma/client'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { PriorityIcon } from '@/components/shared/priority-icon'
 import { LabelBadge } from '@/components/shared/label-badge'
-import { UserAvatar } from '@/components/shared/user-avatar'
+import { AssigneeAvatar } from '@/components/shared/assignee-avatar'
 import {
   Table,
   TableBody,
@@ -179,11 +179,12 @@ export function IssueTable({
                     )}
                   </TableCell>
                   <TableCell>
-                    {issue.assignee ? (
-                      <UserAvatar name={issue.assignee} size="sm" />
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
+                    <AssigneeAvatar 
+                      assigneeId={issue.assigneeId}
+                      assignee={issue.assignee}
+                      size="sm"
+                      fallback={<span className="text-gray-400">-</span>}
+                    />
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">

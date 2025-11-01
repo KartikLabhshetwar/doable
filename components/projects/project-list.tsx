@@ -164,23 +164,6 @@ export function ProjectList({
                         {project.key}
                       </span>
 
-                      {/* Checkbox */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onProjectCheck?.(project.id, !isProjectCompleted)
-                        }}
-                        className="flex-shrink-0"
-                      >
-                        {isProjectCompleted ? (
-                          <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/40 flex items-center justify-center">
-                            <X className="h-2.5 w-2.5 text-muted-foreground" />
-                          </div>
-                        ) : (
-                          <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />
-                        )}
-                      </button>
-
                       {/* Project name */}
                       <span className="flex-1 text-sm text-foreground truncate">
                         {project.name}

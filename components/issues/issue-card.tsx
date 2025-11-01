@@ -2,7 +2,8 @@ import { cn } from '@/lib/utils'
 import { IssueWithRelations, PriorityLevel } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { PriorityIcon } from '@/components/shared/priority-icon'
-import { Circle, X, Loader2 } from 'lucide-react'
+import { AssigneeAvatar } from '@/components/shared/assignee-avatar'
+import { Loader2 } from 'lucide-react'
 
 interface IssueCardProps {
   issue: IssueWithRelations
@@ -17,27 +18,21 @@ export function IssueCard({
   className, 
   isDragging 
 }: IssueCardProps) {
-  // Determine status indicator based on workflow state type
-  const getStatusIcon = () => {
-    const stateType = issue.workflowState.type.toLowerCase()
-    if (stateType === 'canceled' || stateType === 'completed') {
-      return <X className="h-3.5 w-3.5 text-muted-foreground" />
-    } else if (stateType === 'unstarted') {
-      return <Circle className="h-3.5 w-3.5 text-muted-foreground/40 stroke-2" />
-    } else {
-      return <Circle className="h-3.5 w-3.5 text-muted-foreground/40 stroke-2" />
-    }
-  }
-
   const issueId = `${issue.project?.key || issue.team.key}-${issue.number}`
-  const assigneeInitials = issue.assignee
-    ?.split(' ')
-    .map(word => word[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2) || ''
-  
   const isOptimistic = (issue as any).isOptimistic || issue.id.startsWith('temp-')
+  
+  // Get assignee initials for the custom gradient circle
+  const getAssigneeInitials = (name?: string | null) => {
+    if (name) {
+      return name
+        .split(' ')
+        .map(word => word[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    }
+    return '??'
+  }
 
   return (
     <Card
@@ -68,23 +63,30 @@ export function IssueCard({
               className="opacity-70"
             />
             {/* Assignee */}
-            {issue.assignee && (
-              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-[10px] text-white font-medium flex-shrink-0">
-                {assigneeInitials.slice(0, 2)}
-              </div>
-            )}
+            <AssigneeAvatar
+              assigneeId={issue.assigneeId}
+              assignee={issue.assignee}
+              size="sm"
+              fallback={null}
+              className="hidden"
+              // Custom render function for board card design
+              render={(name) => {
+                if (!issue.assigneeId && !name) return null
+                const initials = getAssigneeInitials(name)
+                return (
+                  <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] text-muted-foreground font-medium flex-shrink-0">
+                    {initials}
+                  </div>
+                )
+              }}
+            />
           </div>
         </div>
 
-        {/* Title with status indicator */}
-        <div className="flex items-start gap-2">
-          <div className="flex-shrink-0 mt-0.5">
-            {getStatusIcon()}
-          </div>
-          <h3 className="font-normal text-sm text-foreground leading-snug line-clamp-2 flex-1">
-            {issue.title}
-          </h3>
-        </div>
+        {/* Title */}
+        <h3 className="font-normal text-sm text-foreground leading-snug line-clamp-2">
+          {issue.title}
+        </h3>
 
       </div>
     </Card>

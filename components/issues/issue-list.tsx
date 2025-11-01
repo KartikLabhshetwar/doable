@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { WorkflowState } from '@prisma/client'
 import { IssueWithRelations, PriorityLevel } from '@/lib/types'
-import { UserAvatar } from '@/components/shared/user-avatar'
+import { AssigneeAvatar } from '@/components/shared/assignee-avatar'
 import { PriorityIcon } from '@/components/shared/priority-icon'
 import { Button } from '@/components/ui/button'
 import { ChevronDown, ChevronRight, Plus, X, Loader2 } from 'lucide-react'
@@ -188,23 +188,6 @@ export function IssueList({
                         </span>
                       </div>
 
-                      {/* Checkbox */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onIssueCheck?.(issue.id, !isIssueCompleted)
-                        }}
-                        className="flex-shrink-0"
-                      >
-                        {isIssueCompleted ? (
-                          <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/40 flex items-center justify-center">
-                            <X className="h-2.5 w-2.5 text-muted-foreground" />
-                          </div>
-                        ) : (
-                          <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />
-                        )}
-                      </button>
-
                       {/* Actions menu - appears on hover */}
                       <div 
                         className="flex-shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"
@@ -246,13 +229,16 @@ export function IssueList({
 
                       {/* Assignee avatar */}
                       <div className="flex-shrink-0">
-                        {issue.assignee ? (
-                          <UserAvatar name={issue.assignee} size="sm" />
-                        ) : (
-                          <div className="h-5 w-5 rounded-full border border-muted-foreground/20 flex items-center justify-center">
-                            <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
-                          </div>
-                        )}
+                        <AssigneeAvatar 
+                          assigneeId={issue.assigneeId}
+                          assignee={issue.assignee}
+                          size="sm"
+                          fallback={
+                            <div className="h-5 w-5 rounded-full border border-muted-foreground/20 flex items-center justify-center">
+                              <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                            </div>
+                          }
+                        />
                       </div>
 
                       {/* Date */}

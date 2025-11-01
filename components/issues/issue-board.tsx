@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
+import { useQueryClient } from '@tanstack/react-query'
 import { IssueWithRelations } from '@/lib/types'
 import { WorkflowState } from '@prisma/client'
 import { IssueCard } from '@/components/issues/issue-card'
@@ -47,6 +48,7 @@ export function IssueBoard({
   sidebarCollapsed = false
 }: IssueBoardProps) {
   const [isDragging, setIsDragging] = useState(false)
+  const queryClient = useQueryClient()
 
   const getIssuesByStatus = (statusId: string) => {
     return issues.filter(issue => issue.workflowStateId === statusId)
@@ -57,12 +59,12 @@ export function IssueBoard({
     
     const { destination, source, draggableId } = result
 
-    // If dropped outside a droppable area
+    // If dropped outside a droppable area, do nothing
     if (!destination) {
       return
     }
 
-    // If dropped in the same position
+    // If dropped in the same position, do nothing
     if (
       destination.droppableId === source.droppableId &&
       destination.index === source.index
@@ -73,41 +75,71 @@ export function IssueBoard({
     const issueId = draggableId
     const newWorkflowStateId = destination.droppableId
 
-    try {
-      // Find the new workflow state object
-      const newWorkflowState = workflowStates.find(state => state.id === newWorkflowStateId)
-      
-      // Optimistically update the UI with both workflowStateId and workflowState
+    // Handle same-column reordering (within the same workflow state)
+    if (destination.droppableId === source.droppableId) {
+      // Reorder issues optimistically in all query caches
+      queryClient.getQueryCache().getAll().forEach(query => {
+        if (query.queryKey[0] === 'issues' && query.queryKey[1] === teamId) {
+          queryClient.setQueryData<IssueWithRelations[]>(
+            query.queryKey,
+            (old = []) => {
+              // Get all issues in this workflow state
+              const sameStateIssues = old.filter(
+                issue => issue.workflowStateId === source.droppableId
+              )
+              
+              // Find the dragged issue
+              const draggedIssue = sameStateIssues.find(issue => issue.id === issueId)
+              if (!draggedIssue) return old
+              
+              // Find current index of dragged issue within same state issues
+              const currentIndexInState = sameStateIssues.findIndex(issue => issue.id === issueId)
+              
+              // If already at destination, no change needed
+              if (currentIndexInState === destination.index) return old
+              
+              // Remove dragged issue from its current position
+              const withoutDragged = sameStateIssues.filter(issue => issue.id !== issueId)
+              
+              // Insert at new position
+              const reorderedStateIssues = [...withoutDragged]
+              reorderedStateIssues.splice(destination.index, 0, draggedIssue)
+              
+              // Create a map of issue IDs to their new order within the state
+              const newOrderMap = new Map<string, number>()
+              reorderedStateIssues.forEach((issue, newIndex) => {
+                newOrderMap.set(issue.id, newIndex)
+              })
+              
+              // Build new array: keep issues from other states in their original positions,
+              // replace same-state issues with reordered ones at their original positions
+              return old.map(issue => {
+                if (issue.workflowStateId === source.droppableId) {
+                  // Find this issue's new position in the reordered array
+                  const newIndexInState = newOrderMap.get(issue.id)
+                  if (newIndexInState !== undefined) {
+                    // Return the issue from the reordered array
+                    return reorderedStateIssues[newIndexInState]
+                  }
+                }
+                return issue
+              })
+            }
+          )
+        }
+      })
+      return
+    }
+
+    // Handle cross-column move (workflow state change)
+    const newWorkflowState = workflowStates.find(state => state.id === newWorkflowStateId)
+    
+    if (newWorkflowState) {
+      // Use onIssueUpdate which will handle the mutation and optimistic updates
+      // The mutation system will handle the API call and state management
       onIssueUpdate?.(issueId, { 
         workflowStateId: newWorkflowStateId,
         workflowState: newWorkflowState
-      })
-
-      // Update the issue in the database
-      const response = await fetch(`/api/teams/${teamId}/issues/${issueId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          workflowStateId: newWorkflowStateId,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Failed to update issue: ${response.status} ${response.statusText}`)
-      }
-
-    } catch (error) {
-      console.error('Error updating issue:', error)
-      
-      // Revert the optimistic update on error
-      const originalWorkflowStateId = source.droppableId
-      const originalWorkflowState = workflowStates.find(state => state.id === originalWorkflowStateId)
-      onIssueUpdate?.(issueId, { 
-        workflowStateId: originalWorkflowStateId,
-        workflowState: originalWorkflowState
       })
     }
   }
@@ -216,7 +248,6 @@ export function IssueBoard({
                               key={issue.id}
                               draggableId={issue.id}
                               index={index}
-                              isDragDisabled={isDragging}
                             >
                               {(provided, snapshot) => (
                                 <div

@@ -49,14 +49,9 @@ export function ProjectCard({
       <div className="space-y-3">
         {/* Header with ID and Status */}
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
-            </div>
-            <span className="font-mono text-sm text-muted-foreground">
-              {project.key}
-            </span>
-          </div>
+          <span className="font-mono text-sm text-muted-foreground">
+            {project.key}
+          </span>
           
           {/* Status Badge */}
           <div 
