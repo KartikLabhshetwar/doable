@@ -11,9 +11,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
-import { Filter, X } from 'lucide-react'
+import { Filter, X, Check, Tag } from 'lucide-react'
 import { IssueFilters } from '@/lib/types'
 import { Project, WorkflowState, Label } from '@prisma/client'
+import { cn } from '@/lib/utils'
 
 interface FilterBarProps {
   filters: IssueFilters
@@ -142,22 +143,50 @@ export function FilterBar({
           ))}
 
           <DropdownMenuSeparator />
-          <DropdownMenuLabel>Filter by Labels</DropdownMenuLabel>
-          {labels.map((label) => (
-            <DropdownMenuCheckboxItem
-              key={label.id}
-              checked={filters.label?.includes(label.id) || false}
-              onCheckedChange={(checked) => {
-                const currentLabels = filters.label || []
-                const newLabels = checked
-                  ? [...currentLabels, label.id]
-                  : currentLabels.filter(id => id !== label.id)
-                updateFilter('label', newLabels)
-              }}
-            >
-              {label.name}
-            </DropdownMenuCheckboxItem>
-          ))}
+          <DropdownMenuLabel className="flex items-center gap-2">
+            <Tag className="h-4 w-4" />
+            Filter by Labels
+            {filters.label && filters.label.length > 0 && (
+              <span className="ml-auto h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-medium flex items-center justify-center">
+                {filters.label.length}
+              </span>
+            )}
+          </DropdownMenuLabel>
+          {labels.map((label) => {
+            const isSelected = filters.label?.includes(label.id) || false
+            return (
+              <DropdownMenuCheckboxItem
+                key={label.id}
+                checked={isSelected}
+                onCheckedChange={(checked) => {
+                  const currentLabels = filters.label || []
+                  const newLabels = checked
+                    ? [...currentLabels, label.id]
+                    : currentLabels.filter(id => id !== label.id)
+                  updateFilter('label', newLabels)
+                }}
+                className={cn(
+                  "flex items-center gap-2 cursor-pointer",
+                  isSelected && "bg-primary/10"
+                )}
+              >
+                <div 
+                  className={cn(
+                    "h-3 w-3 rounded-full",
+                    isSelected && "ring-2 ring-primary ring-offset-1"
+                  )}
+                  style={{ backgroundColor: label.color }}
+                />
+                <span className={cn(
+                  "flex-1",
+                  isSelected && "font-medium"
+                )}>{label.name}</span>
+                {isSelected && (
+                  <Check className="h-4 w-4 text-primary font-bold" />
+                )}
+              </DropdownMenuCheckboxItem>
+            )
+          })}
 
           {hasActiveFilters && (
             <>

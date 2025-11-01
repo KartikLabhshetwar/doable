@@ -535,32 +535,49 @@ export function IssueDialog({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8 w-8 p-0"
+                      className={cn(
+                        "h-8 w-8 p-0 relative",
+                        selectedLabels.length > 0 && "bg-primary/10 border-primary/20"
+                      )}
                     >
                       <Tag className="h-4 w-4" />
+                      {selectedLabels.length > 0 && (
+                        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-medium flex items-center justify-center">
+                          {selectedLabels.length}
+                        </span>
+                      )}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-64">
                     <div className="space-y-1">
-                      {labels.map((label) => (
-                        <DropdownMenuItem
-                          key={label.id}
-                          onClick={() => toggleLabel(label.id)}
-                          className={cn(
-                            "flex items-center gap-2",
-                            selectedLabels.includes(label.id) && "bg-muted"
-                          )}
-                        >
-                          <div 
-                            className="h-3 w-3 rounded-full" 
-                            style={{ backgroundColor: label.color }}
-                          />
-                          <span className="flex-1">{label.name}</span>
-                          {selectedLabels.includes(label.id) && (
-                            <Check className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </DropdownMenuItem>
-                      ))}
+                      {labels.map((label) => {
+                        const isSelected = selectedLabels.includes(label.id)
+                        return (
+                          <DropdownMenuItem
+                            key={label.id}
+                            onClick={() => toggleLabel(label.id)}
+                            className={cn(
+                              "flex items-center gap-2 cursor-pointer",
+                              isSelected && "bg-primary/10 border-l-2 border-l-primary"
+                            )}
+                          >
+                            <div 
+                              className={cn(
+                                "h-3 w-3 rounded-full",
+                                isSelected && "ring-2 ring-primary ring-offset-1"
+                              )}
+                              style={{ backgroundColor: label.color }}
+                            />
+                            <span className={cn(
+                              "flex-1",
+                              isSelected && "font-medium"
+                            )}>{label.name}</span>
+                            {isSelected && (
+                              <Check className="h-4 w-4 text-primary font-bold" />
+                            )}
+                          </DropdownMenuItem>
+                        )
+                      })}
                     </div>
                   </DropdownMenuContent>
                 </DropdownMenu>
