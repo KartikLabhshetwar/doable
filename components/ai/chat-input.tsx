@@ -7,7 +7,7 @@ import {
   PromptInputTextarea,
   PromptInputActions,
 } from '@/components/ui/prompt-input'
-import IconPaperPlane from '../ui/IconPaperPlane'
+import { ArrowUp } from 'lucide-react'
 interface ChatInputProps {
   onSend: (message: string) => void
   disabled?: boolean
@@ -52,7 +52,7 @@ export function ChatInput({ onSend, disabled, suggestedPrompt }: ChatInputProps)
             onClick={handleSubmit}
             className="h-9 w-9 rounded-full shrink-0"
           >
-            <IconPaperPlane className="h-4 w-4" />
+            <ArrowUp className="h-4 w-4" />
           </Button>
         </PromptInputActions>
       </PromptInput>

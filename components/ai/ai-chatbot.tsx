@@ -4,11 +4,34 @@ import { useEffect, useRef, useState } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { Loader2 } from 'lucide-react'
-import { ChatMessage } from './chat-message'
 import { ChatInput } from './chat-input'
-import IconPaperPlane from '../ui/IconPaperPlane'
+import IconMsgs from '../ui/IconMsgs'
+import IconUser from '../ui/IconUser'
 import { useActiveConversation } from '@/lib/hooks/use-chat-conversation'
 import { useQueryClient } from '@tanstack/react-query'
+import {
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from '@/components/ai-elements/conversation'
+import {
+  Message,
+  MessageContent,
+} from '@/components/ai-elements/message'
+import { Response } from '@/components/ai-elements/response'
+import { Suggestions, Suggestion } from '@/components/ai-elements/suggestion'
+import {
+  Reasoning,
+  ReasoningTrigger,
+  ReasoningContent,
+} from '@/components/ai-elements/reasoning'
+import {
+  ChainOfThought,
+  ChainOfThoughtHeader,
+  ChainOfThoughtContent,
+  ChainOfThoughtStep,
+} from '@/components/ai-elements/chain-of-thought'
 
 interface AIChatbotProps {
   teamId: string
@@ -28,7 +51,6 @@ const promptSuggestions = [
 ]
 
 export function AIChatbot({ teamId }: AIChatbotProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null)
   const processedMessageIdsRef = useRef<Set<string>>(new Set())
   const previousStatusRef = useRef<string>('ready')
   const queryClient = useQueryClient()
@@ -130,11 +152,7 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
   }, [conversation, setMessages, messages.length, conversationId])
 
   const isLoading = status !== 'ready' && status !== 'error'
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  const isStreaming = status === 'streaming'
 
   const [suggestedPrompt, setSuggestedPrompt] = useState<string | undefined>()
 
@@ -342,13 +360,56 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
     }
   }, [messages, status, queryClient, teamId])
 
+  // Helper function to extract content and metadata from messages
+  const extractMessageData = (message: any) => {
+    let textContent = ''
+    let reasoning: string | null = null
+    let chainOfThought: any = null
+    
+    if (message.content && typeof message.content === 'string') {
+      textContent = message.content
+    } else if (message.parts && Array.isArray(message.parts)) {
+      textContent = message.parts
+        .filter((part: any) => part.type === 'text')
+        .map((part: any) => part.text || '')
+        .join('')
+      
+      // Check for reasoning or chain-of-thought in parts
+      const reasoningPart = message.parts.find((part: any) => 
+        part.type === 'reasoning' || part.reasoning
+      )
+      if (reasoningPart) {
+        reasoning = reasoningPart.reasoning || reasoningPart.text || ''
+      }
+      
+      const cotPart = message.parts.find((part: any) => 
+        part.type === 'chain-of-thought' || part.chainOfThought
+      )
+      if (cotPart) {
+        chainOfThought = cotPart.chainOfThought || cotPart
+      }
+    } else if (message.text) {
+      textContent = message.text
+    }
+    
+    // Try to parse reasoning/chain-of-thought from text content if marked
+    // Check for common markers like [reasoning] or [chain-of-thought]
+    const reasoningMatch = textContent.match(/\[reasoning\]([\s\S]*?)\[\/reasoning\]/i)
+    if (reasoningMatch && !reasoning) {
+      reasoning = reasoningMatch[1].trim()
+      textContent = textContent.replace(/\[reasoning\][\s\S]*?\[\/reasoning\]/i, '').trim()
+    }
+    
+    return { textContent, reasoning, chainOfThought }
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="border-b border-border p-4">
         <div className="flex items-center gap-2">
           <div className="rounded-full bg-primary/10 p-2">
-            <IconPaperPlane className="h-5 w-5 text-primary" />
+            <IconMsgs className="h-5 w-5 text-primary" />
           </div>
           <div>
             <h2 className="text-lg font-semibold">Doable AI</h2>
@@ -360,94 +421,146 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        {isLoadingConversation ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="flex flex-col items-center space-y-4">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Loading conversation...</p>
-            </div>
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full p-6">
-            <IconPaperPlane className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
-            <p className="text-sm text-muted-foreground max-w-sm mb-6 text-center">
-              I can help you create issues, manage projects, invite team members, and more. 
-              Just ask me anything!
-            </p>
-            
-            {/* Prompt Suggestions */}
-            <div className="w-full max-w-2xl space-y-2">
-              <p className="text-xs font-medium text-muted-foreground mb-3 text-center">
-                Try asking:
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {promptSuggestions.map((suggestion, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handlePromptClick(suggestion)}
-                    className="text-left p-3 rounded-lg border border-border bg-card hover:bg-primary/10 hover:border-primary transition-all text-sm text-foreground"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
+      <Conversation className="flex-1">
+        <ConversationContent>
+          {isLoadingConversation ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center space-y-4">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Loading conversation...</p>
               </div>
             </div>
-          </div>
-        ) : (
-          <>
-            {messages.map((message, index) => {
-              // Extract text content - handle both formats:
-              // 1. Messages from DB: have content directly (set via setMessages)
-              // 2. Messages from AI SDK: have parts structure
-              let textContent = ''
-              
-              const msg = message as any
-              
-              if (msg.content && typeof msg.content === 'string') {
-                // Direct content (from DB or simple messages)
-                textContent = msg.content
-              } else if (message.parts && Array.isArray(message.parts)) {
-                // Parts structure (from AI SDK streaming)
-                textContent = message.parts
-                  .filter((part: any) => part.type === 'text')
-                  .map((part: any) => part.text || '')
-                  .join('')
-              } else if (msg.text) {
-                // Fallback for text property
-                textContent = msg.text
-              }
-              
-              return (
-                <ChatMessage 
-                  key={message.id || index} 
-                  message={{
-                    role: message.role,
-                    content: textContent || '',
-                    id: message.id,
-                  }} 
-                />
-              )
-            })}
-
-            {error && (
-              <div className="p-4 text-sm text-destructive">
-                Error: {error.message}
+          ) : messages.length === 0 ? (
+            <ConversationEmptyState
+              icon={<IconMsgs className="h-12 w-12" />}
+              title="Start a conversation"
+              description="I can help you create issues, manage projects, invite team members, and more. Just ask me anything!"
+            >
+              <div className="w-full max-w-2xl mt-6">
+                <p className="text-xs font-medium text-muted-foreground mb-3 text-center">
+                  Try asking:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {promptSuggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handlePromptClick(suggestion)}
+                      className="text-left p-3 rounded-lg border border-border bg-card hover:bg-primary/10 hover:border-primary transition-all text-sm text-foreground"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
+            </ConversationEmptyState>
+          ) : (
+            <>
+              {messages.map((message, index) => {
+                const { textContent, reasoning, chainOfThought } = extractMessageData(message)
+                const isUser = message.role === 'user'
+                const isAssistant = message.role === 'assistant'
+                const isLastMessage = index === messages.length - 1
+                
+                return (
+                  <Message key={message.id || index} from={message.role}>
+                    {isUser ? (
+                      <div className="size-8 rounded-full ring-1 ring-border bg-secondary flex items-center justify-center shrink-0">
+                        <IconUser className="h-4 w-4" />
+                      </div>
+                    ) : (
+                      <div className="size-8 rounded-full ring-1 ring-border bg-secondary flex items-center justify-center shrink-0">
+                        <IconMsgs className="h-4 w-4" />
+                      </div>
+                    )}
+                    <MessageContent variant="flat">
+                      {isAssistant && reasoning && (
+                        <Reasoning
+                          isStreaming={isLastMessage && isStreaming}
+                          defaultOpen={true}
+                        >
+                          <ReasoningTrigger />
+                          <ReasoningContent>{reasoning}</ReasoningContent>
+                        </Reasoning>
+                      )}
+                      
+                      {isAssistant && chainOfThought && (
+                        <ChainOfThought defaultOpen={false}>
+                          <ChainOfThoughtHeader>
+                            Chain of Thought
+                          </ChainOfThoughtHeader>
+                          <ChainOfThoughtContent>
+                            {Array.isArray(chainOfThought) ? (
+                              chainOfThought.map((step: any, stepIndex: number) => (
+                                <ChainOfThoughtStep
+                                  key={stepIndex}
+                                  label={step.label || `Step ${stepIndex + 1}`}
+                                  description={step.description}
+                                  status={step.status || 'complete'}
+                                >
+                                  {step.content && (
+                                    <Response>{step.content}</Response>
+                                  )}
+                                </ChainOfThoughtStep>
+                              ))
+                            ) : (
+                              <ChainOfThoughtStep
+                                label="Thinking process"
+                                status="complete"
+                              >
+                                <Response>{typeof chainOfThought === 'string' ? chainOfThought : JSON.stringify(chainOfThought)}</Response>
+                              </ChainOfThoughtStep>
+                            )}
+                          </ChainOfThoughtContent>
+                        </ChainOfThought>
+                      )}
+                      
+                      {textContent && (
+                        <Response>{textContent}</Response>
+                      )}
+                    </MessageContent>
+                  </Message>
+                )
+              })}
 
-            {isLoading && (
-              <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>AI is thinking...</span>
-              </div>
-            )}
+              {error && (
+                <div className="p-4 text-sm text-destructive">
+                  Error: {error.message}
+                </div>
+              )}
 
-            <div ref={messagesEndRef} />
-          </>
-        )}
-      </div>
+              {isLoading && (
+                <Message from="assistant">
+                  <div className="size-8 rounded-full ring-1 ring-border bg-secondary flex items-center justify-center shrink-0">
+                    <IconMsgs className="h-4 w-4" />
+                  </div>
+                  <MessageContent variant="flat">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>AI is thinking...</span>
+                    </div>
+                  </MessageContent>
+                </Message>
+              )}
+
+              {/* Show suggestions after messages when ready */}
+              {!isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && (
+                <div className="px-4 pb-4">
+                  <Suggestions>
+                    {promptSuggestions.slice(0, 5).map((suggestion, index) => (
+                      <Suggestion
+                        key={index}
+                        suggestion={suggestion}
+                        onClick={handlePromptClick}
+                      />
+                    ))}
+                  </Suggestions>
+                </div>
+              )}
+            </>
+          )}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
 
       {/* Input */}
       <ChatInput onSend={handleSend} disabled={isLoading} suggestedPrompt={suggestedPrompt} />

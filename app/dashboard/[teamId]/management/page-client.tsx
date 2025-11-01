@@ -12,7 +12,7 @@ import { ApiKeyDialog } from "@/components/shared/api-key-dialog"
 import { Badge } from "@/components/ui/badge"
 import IconFiles from "@/components/ui/IconFiles"
 import IconKey from "@/components/ui/IconKey"
-import IconPaperPlane from "@/components/ui/IconPaperPlane"
+import IconMsgs from "@/components/ui/IconMsgs"
 import IconUsers from "@/components/ui/IconUsers"
 import IconSquareChartLine from "@/components/ui/IconSquareChartLine"
 import IconCircleCheck from "@/components/ui/IconCircleCheck"
@@ -107,7 +107,7 @@ export function ManagementPageClient() {
           <div className="flex items-start sm:items-center justify-between gap-3">
             <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
               <div className="rounded-full bg-primary/20 p-2 flex-shrink-0">
-                <IconPaperPlane className="h-5 w-5 text-primary" />
+                <IconMsgs className="h-5 w-5 text-primary" />
               </div>
               <div className="min-w-0 flex-1">
                 <CardTitle className="flex items-center gap-2 flex-wrap">

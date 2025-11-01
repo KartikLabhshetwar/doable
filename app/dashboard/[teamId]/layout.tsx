@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/sidebar";
 import { LogOut } from "lucide-react";
 import IconSquareChartLine from "@/components/ui/IconSquareChartLine";
-import IconPaperPlane from "@/components/ui/IconPaperPlane";
+import IconMsgs from "@/components/ui/IconMsgs";
 import IconUsers from "@/components/ui/IconUsers";
 import IconFiles from "@/components/ui/IconFiles";
 import IconGearKeyhole from "@/components/ui/IconGearKeyhole";
@@ -362,7 +362,7 @@ export default function Layout(props: { children: React.ReactNode }) {
                       className="relative"
                       title={`Open Doable AI (${isMac ? '⌘' : 'Ctrl'}+K)`}
                     >
-                      <IconPaperPlane className="h-8 w-8" />
+                      <IconMsgs className="h-8 w-8" />
                     </Button>
                     <kbd className="pointer-events-none inline-flex h-6 select-none items-center gap-1 rounded-md border border-border/50 bg-muted/50 px-2 font-mono text-[11px] font-medium text-muted-foreground opacity-100 whitespace-nowrap shadow-sm">
                       <span className="text-xs">{isMac ? '⌘' : 'Ctrl'}</span>K

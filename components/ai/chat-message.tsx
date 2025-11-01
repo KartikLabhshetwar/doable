@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Markdown } from '@/components/ui/markdown'
 import { cn } from '@/lib/utils'
 import IconUser from '../ui/IconUser'
-import IconPaperPlane from '../ui/IconPaperPlane'
+import IconMsgs from '../ui/IconMsgs'
 
 interface ChatMessageProps {
   message: {
@@ -28,7 +28,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           {isUser ? (
             <IconUser className="h-4 w-4" />
           ) : (
-            <IconPaperPlane className="h-4 w-4" />
+            <IconMsgs className="h-4 w-4" />
           )}
         </AvatarFallback>
       </Avatar>
